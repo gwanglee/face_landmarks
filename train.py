@@ -1,24 +1,54 @@
+import tensorflow as tf
+import numpy as np
+import os
+
+import net
+from random import shuffle
+
+slim = tf.contrib.slim
+
+def prepare_data_list(inpath):
+    assert os.path.exists(inpath) and os.path.isdir(inpath)
+
+    lists = []
+    for l in os.listdir(inpath):
+        if l.endswith('img'):
+            pts_path = os.path.join(inpath, os.path.splitext(l)[0] + '.pts')
+            if os.path.exists(pts_path):
+                lists.append([os.path.join(inpath, l), pts_path])
+
+    return lists
+
+def read_data(list2train, cur_pos, batch_size=10):
+    data = np.zeros((batch_size, 48, 48, 3), dtype=np.float32)
+    ans = np.zeros((batch_size, 68*2), dtype=np.float32)
+
+    for i in range(batch_size):
+        p = (i+cur_pos) % len(list2train)
+        # data[i, :, :, :] = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, 3))
+        ans[i, :] = np.fromfile(list2train[p][1], dtype=float)
+        print(len(ans[i, :]))
+        print(len(np.fromfile(list2train[p][0], dtype=float)))
+
+    return data, ans, p
+
+
 def train(list2train, max_epoch=10, batch_size=64, num_threads=4, save_path='./train/model.ckpt'):
 
     num_samples = len(list2train)
 
     with slim.arg_scope(net.arg_scope()):
 
-        data_ph = tf.placeholder(tf.float32, [None, 32, 32, 1], name='input')
-        ans_ph = tf.placeholder(tf.float32, [None, 1])
+        data_ph = tf.placeholder(tf.float32, [None, 48, 48, 3], name='input')
+        ans_ph = tf.placeholder(tf.float32, [None, 68*2])
 
-        data_aug_ph = augment_intensity(data_ph)
-        estims = net.infer(data_aug_ph, is_training=True)
+        estims, _ = net.lannet(data_ph, is_training=True)
 
         global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = 0.001
 
-        learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, len(list2train)/batch_size*5, 0.96, staircase=True)
-                # drops for every 5 epochs
-
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, len(list2train)/batch_size*4, 0.96, staircase=True)
         loss = tf.losses.mean_squared_error(ans_ph, estims, scope='mse')
-        #loss = tf.losses.softmax_cross_entropy(ans_ph, estims)
-        #train_op = tf.train.AdamOptimizer(learning_rate=0.001).minimize(loss, global_step=global_step)
         train_op = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss, global_step=global_step)
 
         ema = tf.train.ExponentialMovingAverage(decay=0.999)
@@ -31,55 +61,39 @@ def train(list2train, max_epoch=10, batch_size=64, num_threads=4, save_path='./t
 
         num_iter = 0
         epoch = 0
-
-        #aug_params = {'flip': True, 'pos': 0.05, 'scale': [0.95, 1.1], 'rot':15}
-        aug_params = {'flip': True, 'pos': 0.10, 'scale': [0.90, 1.2], 'rot': 30}
+        pos = 0
 
         while epoch < max_epoch:
 
-            input_batch, ans_batch, pos = read_data_thread(list2train, num_iter, batch_size=batch_size,
-                                                           expand=0.1, aug_params=aug_params, num_threads=num_threads)
+            input_batch, ans_batch, pos = read_data(list2train, pos)
 
-            steps, lr, val_loss, ans_pred, _ = sess.run([global_step, learning_rate, loss, estims, train_op], \
-                                              feed_dict={data_ph: input_batch, ans_ph: ans_batch})
+            steps, lr, val_loss, ans_pred, _ = sess.run([global_step, learning_rate, loss, estims, train_op], feed_dict={data_ph: input_batch, ans_ph: ans_batch})
             num_iter += 1
 
             steps = num_iter * batch_size
             epoch = int(steps/num_samples)
             print('(pos %4d) Epoch %d, iter %d : loss=%f. lr=%f' % (pos, epoch, num_iter, val_loss, lr))
 
-            if num_iter % 10 == 0:  # validation by drawing
-                tiled = make_tile_image(input_batch, ans_batch, ans_pred,
-                                batch_size=batch_size, tile_width=int(batch_size/8), tile_height=8)
-
-                cv2.imshow("validation", tiled)
-                cv2.waitKey(10)
-
-        # write save code here
-        if save_path:
-            path_to_save = save_path
-            if os.path.exists(path_to_save):
-                rmtree(path_to_save)
-
-            os.makedirs(path_to_save)
-
-            tf.train.write_graph(sess.graph.as_graph_def(), os.path.basename(path_to_save), 'model.pbtxt')
-            saver = tf.train.Saver()
-            save_path = saver.save(sess, path_to_save)
-            print('model saved: %s'%save_path)
-
-            image_save_path = path_to_save + ".jpg"
-            cv2.imwrite(image_save_path, tiled)
-            cv2.imshow("finished", tiled)
-            cv2.waitKey(-1)
+        # # write save code here
+        # if save_path:
+        #     path_to_save = save_path
+        #     if os.path.exists(path_to_save):
+        #         rmtree(path_to_save)
+        #
+        #     os.makedirs(path_to_save)
+        #
+        #     tf.train.write_graph(sess.graph.as_graph_def(), os.path.basename(path_to_save), 'model.pbtxt')
+        #     saver = tf.train.Saver()
+        #     save_path = saver.save(sess, path_to_save)
+        #     print('model saved: %s'%save_path)
+        #
+        #     image_save_path = path_to_save + ".jpg"
+        #     cv2.imwrite(image_save_path, tiled)
+        #     cv2.imshow("finished", tiled)
+        #     cv2.waitKey(-1)
 
         sess.close()
 
 if __name__ == '__main__':
-    #test_list_shuffle(train_list)
-    #test_read_data(train_list)
-    import time
-
-    save_name = '%s'%time.strftime('%m%d_%H%M')
-    save_dir = './train/' + save_name + '/' + save_name + '.ckpt'
-    train(train_list, max_epoch=64, batch_size=64, num_threads=16, save_path=save_dir)
+    train_list = prepare_data_list('/home/gglee/Data/300W/export')
+    train(train_list, max_epoch=12)
