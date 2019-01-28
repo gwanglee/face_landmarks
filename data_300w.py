@@ -89,9 +89,10 @@ if __name__ == '__main__':
 
             ibbox = [int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)]
             cropped = image.crop(ibbox)
+            cropped = cropped.resize((48, 48), Image.BILINEAR)
 
             bname = os.path.splitext(os.path.basename(s[0]))[0]
-            arr = np.array(cropped)
+            arr = np.array(cropped)/255.0
             normed = normalizePoints(points)
             pts = np.array(normed)
             arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
@@ -99,7 +100,7 @@ if __name__ == '__main__':
 
             if i % 10 == 0:
                 draw = ImageDraw.Draw(cropped)
-                w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
+                w, h = cropped.width, cropped.height
                 for p in normed:
                     l, t, r, b = int(p[0]*w) - 1, int(p[1]*h) - 1, int(p[0]*w) + 1, int(p[1]*h) + 1
                     draw.ellipse((l, t, r, b))
