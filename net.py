@@ -19,13 +19,12 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-import nets.inception_v3 as inception_v3
+# import nets.inception_v3 as inception_v3
 
 slim = tf.contrib.slim
 
 
-def darknet_base(inputs,
-        final_endpoint='',
+def lannet(inputs,
         scope=None):
   """Creates a variant of the LeNet model.
 
@@ -70,9 +69,9 @@ def darknet_base(inputs,
         net = end_points['pool4'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool4')
         net = end_points['conv5'] = slim.conv2d(net, 128, [3, 3], scope='conv5')
         net = end_points['pool5'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool5')
-        net = end_points['conv6'] = slim.conv2d(net, 256, [3, 3], scope='conv6')
-        #net = end_points['pool6'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool6')
-        net = end_points['conv7'] = slim.conv2d(net, 512, [3, 3], scope='conv7')
+        net = end_points['conv6'] = slim.conv2d(net, [2, 2], padding='VALID', scope='conv6')
+        net = slim.flatten(net)
+        slim.fully_connected(net, 64*2)
         return net, end_points
 
         net = slim.flatten(net)
