@@ -59,6 +59,14 @@ def getBoundingBox(pts):
     return [min(x), min(y), max(x), max(y)]
 
 
+def normalizePoints(pts):
+    bbox = getBoundingBox(pts)
+    l, t = bbox[0], bbox[1]
+    w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
+
+    normed = [[(p[0]-l)/w, (p[1]-t)/h] for p in pts]
+    return normed
+
 if __name__ == '__main__':
     PATH = ['/home/gglee/Data/300W/01_Indoor', '/home/gglee/Data/300W/02_Outdoor']
     WRITE_PATH = '/home/gglee/Data/300W/export'
@@ -77,31 +85,32 @@ if __name__ == '__main__':
 
             bbox = getBoundingBox(points)
             cx, cy = (bbox[0] + bbox[2])/2.0, (bbox[1] + bbox[3])/2.0
-            r = max(bbox[2]-bbox[0], bbox[3] - bbox[1])/2.0
+            w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
 
-            ibbox = [int(cx-r), int(cy-r), int(cx+r), int(cy+r)]
+            ibbox = [int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)]
             cropped = image.crop(ibbox)
 
             bname = os.path.splitext(os.path.basename(s[0]))[0]
             arr = np.array(cropped)
-            pts = np.array(points)
+            normed = normalizePoints(points)
+            pts = np.array(normed)
             arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
             pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
 
             if i % 10 == 0:
-                draw = ImageDraw.Draw(image)
-                for p in points:
-                    l, t, r, b = int(p[0]) - 1, int(p[1]) - 1, int(p[0]) + 1, int(p[1]) + 1
+                draw = ImageDraw.Draw(cropped)
+                w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
+                for p in normed:
+                    l, t, r, b = int(p[0]*w) - 1, int(p[1]*h) - 1, int(p[0]*w) + 1, int(p[1]*h) + 1
                     draw.ellipse((l, t, r, b))
 
-                draw.rectangle(ibbox)
                 del draw
 
                 for proc in psutil.process_iter():
                     if proc.name() == 'display':
                         proc.kill()
 
-                image.show()
+                cropped.show()
 
     for proc in psutil.process_iter():
         if proc.name() == 'display':
