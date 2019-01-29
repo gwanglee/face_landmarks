@@ -25,15 +25,14 @@ def read_data(list2train, cur_pos, batch_size=10):
 
     for i in range(batch_size):
         p = (i+cur_pos) % len(list2train)
-        # data[i, :, :, :] = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, 3))
-        ans[i, :] = np.fromfile(list2train[p][1], dtype=float)
-        print(len(ans[i, :]))
-        print(len(np.fromfile(list2train[p][0], dtype=float)))
-
+        d = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, 3))
+        a = np.fromfile(list2train[p][1], dtype=float)
+        data[i, :, :, :] = d / 255.0 - 1.0
+        ans[i, :] = a
     return data, ans, p
 
 
-def train(list2train, max_epoch=10, batch_size=64, num_threads=4, save_path='./train/model.ckpt'):
+def train(list2train, max_epoch=16, batch_size=64, num_threads=4, save_path='./train/model.ckpt'):
 
     num_samples = len(list2train)
 
@@ -95,5 +94,5 @@ def train(list2train, max_epoch=10, batch_size=64, num_threads=4, save_path='./t
         sess.close()
 
 if __name__ == '__main__':
-    train_list = prepare_data_list('/home/gglee/Data/300W/export')
-    train(train_list, max_epoch=12)
+    train_list = prepare_data_list('/Volumes/Mac/Users/gglee/Data/export')
+    train(train_list, max_epoch=36)

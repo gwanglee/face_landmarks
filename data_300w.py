@@ -68,8 +68,8 @@ def normalizePoints(pts):
     return normed
 
 if __name__ == '__main__':
-    PATH = ['/home/gglee/Data/300W/01_Indoor', '/home/gglee/Data/300W/02_Outdoor']
-    WRITE_PATH = '/home/gglee/Data/300W/export'
+    PATH = ['/Users/gglee/Data/300W/01_Indoor', '/Users/gglee/Data/300W/02_Outdoor']
+    WRITE_PATH = '/Users/gglee/Data/300W/export'
     if not os.path.exists(WRITE_PATH):
         os.makedirs(WRITE_PATH)
 
@@ -82,20 +82,21 @@ if __name__ == '__main__':
         for i, s in enumerate(samples):
             image = Image.open(s[0])
             points = loadLandmarkData(s[1])
-
             bbox = getBoundingBox(points)
             cx, cy = (bbox[0] + bbox[2])/2.0, (bbox[1] + bbox[3])/2.0
             w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
 
             ibbox = [int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)]
             cropped = image.crop(ibbox)
-            cropped = cropped.resize((48, 48), Image.BILINEAR)
+            cropped = cropped.resize((48, 48), Image.BILINEAR).convert("L")
 
             bname = os.path.splitext(os.path.basename(s[0]))[0]
-            arr = np.array(cropped)/255.0
+
+            arr = np.array(cropped).astype(dtype=float)
+            arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
+
             normed = normalizePoints(points)
             pts = np.array(normed)
-            arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
             pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
 
             if i % 10 == 0:
