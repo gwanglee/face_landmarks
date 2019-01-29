@@ -3,6 +3,7 @@ import numpy as np
 import os
 from PIL import Image, ImageDraw
 import psutil
+import shutil
 
 import net
 from random import shuffle
@@ -97,26 +98,21 @@ def train(list2train, max_epoch=16, batch_size=64, num_threads=4, save_path='./t
 
                 img.show()
 
-        # # write save code here
-        # if save_path:
-        #     path_to_save = save_path
-        #     if os.path.exists(path_to_save):
-        #         rmtree(path_to_save)
-        #
-        #     os.makedirs(path_to_save)
-        #
-        #     tf.train.write_graph(sess.graph.as_graph_def(), os.path.basename(path_to_save), 'model.pbtxt')
-        #     saver = tf.train.Saver()
-        #     save_path = saver.save(sess, path_to_save)
-        #     print('model saved: %s'%save_path)
-        #
-        #     image_save_path = path_to_save + ".jpg"
-        #     cv2.imwrite(image_save_path, tiled)
-        #     cv2.imshow("finished", tiled)
-        #     cv2.waitKey(-1)
+        # write save code here
+        if save_path:
+            path_to_save = save_path
+            if os.path.exists(path_to_save):
+                shutil.rmtree(path_to_save)
+
+            os.makedirs(path_to_save)
+
+            tf.train.write_graph(sess.graph.as_graph_def(), os.path.basename(path_to_save), 'model.pbtxt')
+            saver = tf.train.Saver()
+            save_path = saver.save(sess, path_to_save)
+            print('model saved: %s'%save_path)
 
         sess.close()
 
 if __name__ == '__main__':
     train_list = prepare_data_list('/Users/gglee/Data/300W/export')
-    train(train_list, max_epoch=256)
+    train(train_list, max_epoch=256, save_path='/Users/gglee/Data/300W/model')
