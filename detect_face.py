@@ -5,6 +5,7 @@ import tensorflow as tf
 from time import time
 import cv2
 from shutil import rmtree
+import inference as infer
 
 flags = tf.app.flags
 flags.DEFINE_string('checkpoint_dir', '',
@@ -108,6 +109,8 @@ if __name__ == '__main__':
 
     video_writer = None
 
+    landmark_estimator = infer.Classifier(48, '/Users/gglee/Data/300W/model/model')
+
     if IMAGES_DIR == '':
         use_camera = True
 
@@ -207,15 +210,55 @@ if __name__ == '__main__':
 
                 # boxes = np.reshape(boxes, (len(boxes)/4, 4))
 
+                patches = np.zeros((8, 48, 48, 1), dtype=np.float32)
+
+                gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
                 boxes = np.squeeze(boxes)
                 scores = np.squeeze(scores)
                 classes = np.squeeze(classes).astype(np.int32)
 
-                for i, b in enumerate(boxes):
+                HEIGHT, WIDTH, _ = image.shape
+
+                for i, box in enumerate(boxes):
                     if scores[i] < 0.5:
-                        break;
-                    H, W, _ = image.shape
-                    cv2.rectangle(image, (int(b[1]*W), int(b[0]*H)), (int(b[3]*W), int(b[2]*H)), (0, 0, 255), 2)
+                        break
+
+                    # classify faces
+                    l, t, r, b = int(box[1]*WIDTH), int(box[0]*HEIGHT), int(box[3]*WIDTH), int(box[2]*HEIGHT)
+                    w, h = r - l, b - t
+
+                    cx, cy = (l + r) / 2.0, (b + t) / 2.0
+                    scale = 0.55
+                    w, h = w * scale, h * scale
+                    l, r = max(0, int(cx - w)), min(int(cx + w), WIDTH)
+                    t, b = max(0, int(cy - h)), min(int(cy + h), HEIGHT)
+                    t = b - (r-l)
+
+                    face = gray[t:b, l:r]
+                    patch = cv2.resize(face, (48, 48))
+
+                    if i < 8:
+                        patches[i, :, :, 0] = ((np.asarray(patch).astype(np.float32))/255.0-1.0)
+                        # verify = ((np.asarray(patches[i, :, :, 0]).squeeze()+1.0)*255.0).astype(np.uint8)
+                        # cv2.imshow("verify", verify)
+
+                landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
+
+                for i, box in enumerate(boxes):
+                    if scores[i] < 0.5:
+                        break
+
+                    patch = ((np.asarray(patches[i, :, :, 0]).squeeze() + 1.0) * 255.0).astype(np.uint8)
+
+                    H, W = (box[2] - box[0]) * HEIGHT, (box[3] - box[1]) * WIDTH
+                    for p in landmarks[i]:
+                        cv2.circle(patch, (int(p[0]*48), int(p[1]*48)), 1, (255, 255, 255))
+                    cv2.imshow("patch", patch)
+
+                    cv2.rectangle(image, (int(box[1]*WIDTH), int(box[0]*HEIGHT)), (int(box[3]*WIDTH), int(box[2]*HEIGHT)), (0, 0, 255), 2)
+                    for p in landmarks[i]:
+                        cv2.circle(image, (int(box[1]*WIDTH+(p[0]*W)), int(box[0]*HEIGHT+(H-W)+p[1]*W)), 2, (0, 255, 255))
 
                 cv2.imshow("image", image)
                 key = cv2.waitKey(20)
