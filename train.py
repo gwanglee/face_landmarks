@@ -108,13 +108,14 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
 
             os.makedirs(path_to_save)
 
-            tf.train.write_graph(sess.graph.as_graph_def(), os.path.basename(path_to_save), 'model.pbtxt')
             saver = tf.train.Saver()
-            save_path = saver.save(sess, path_to_save)
+            save_path = saver.save(sess, os.path.join(path_to_save, 'trained.ckpt'))
+            tf.train.write_graph(sess.graph.as_graph_def(), path_to_save, 'trained.pbtxt', as_text=True)
+            tf.train.write_graph(sess.graph.as_graph_def(), path_to_save, 'trained.pb', as_text=False)
             print('model saved: %s'%save_path)
 
         sess.close()
 
 if __name__ == '__main__':
     train_list = prepare_data_list('/Users/gglee/Data/300W/export')
-    train(train_list, max_epoch=999, save_path='/Users/gglee/Data/300W/model')
+    train(train_list, max_epoch=9, save_path='/Users/gglee/Data/300W/model')
