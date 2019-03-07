@@ -18,7 +18,7 @@ class Classifier(object):
                 self.sess = tf.Session()
                 # Build a Graph that computes the logits predictions from the
                 # inference model.
-                self.images_pholder = tf.placeholder(tf.float32, [8, input_size, input_size, 1])
+                self.images_pholder = tf.placeholder(tf.float32, [8, input_size, input_size, 3])
 
                 self.landmarks, _ = net.lannet(self.images_pholder, is_training=False)
 

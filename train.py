@@ -8,6 +8,8 @@ import shutil
 import net
 from random import shuffle
 
+CH = 3
+
 slim = tf.contrib.slim
 
 def prepare_data_list(inpath):
@@ -25,15 +27,15 @@ def prepare_data_list(inpath):
     return lists
 
 def read_data(list2train, cur_pos, batch_size=10):
-    data = np.zeros((batch_size, 48, 48, 1), dtype=np.float32)
+    data = np.zeros((batch_size, 48, 48, CH), dtype=np.float32)
     ans = np.zeros((batch_size, 68*2), dtype=np.float32)
 
     for i in range(batch_size):
         cur_pos += 1
         p = cur_pos % len(list2train)
-        d = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, 1))
+        d = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, CH))
         a = np.fromfile(list2train[p][1], dtype=float)
-        data[i, :, :, :] = d / 255.0 - 1.0
+        data[i, :, :, :] = d * 2 / 255.0 - 1.0       # norm between -1 to 1
         ans[i, :] = a
     return data, ans, p
 
@@ -44,7 +46,7 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
 
     with slim.arg_scope(net.arg_scope()):
 
-        data_ph = tf.placeholder(tf.float32, [None, 48, 48, 1], name='input')
+        data_ph = tf.placeholder(tf.float32, [None, 48, 48, CH], name='input')
         ans_ph = tf.placeholder(tf.float32, [None, 68*2])
 
         estims, _ = net.lannet(data_ph, is_training=True)
@@ -117,5 +119,5 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
         sess.close()
 
 if __name__ == '__main__':
-    train_list = prepare_data_list('/Users/gglee/Data/300W/export')
-    train(train_list, max_epoch=9, save_path='/Users/gglee/Data/300W/model')
+    train_list = prepare_data_list('/Users/gglee/Data/Landmark/300W/export')
+    train(train_list, max_epoch=29, save_path='/Users/gglee/Data/Landmark/300W/model')
