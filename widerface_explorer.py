@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
     print("DB load: %d images, %d annotations"%(total_images, total_annotations))
 
-    for i in range(100):     # draw 10 images randomly
+    for i in range(10):     # draw 10 images randomly
         idx = randint(0, total_images)
         data = wdb.get_annos_by_image_index(idx)
 

@@ -4,7 +4,6 @@ Add more explanation
 
 Example usage: (need to update)
     python split_wider_face.py \
-        --type=['split' or 'mask'] \
         --image_dir=/dataset/root/wider_face/whatever/'images' \
         --gt_path=/dataset/root/wider_face/somewhere/gt.txt \
         --output_image_dir=/dataset/where/to/save/'images' \
@@ -27,14 +26,13 @@ import cv2
 
 import numpy as np
 import tensorflow as tf
-import wider_face_explorer
+import widerface_explorer
 from random import randrange
 from copy import deepcopy
 
 sys.path.append('/Users/gglee/Develop/models/research')
 sys.path.append('/Users/gglee/Develop/models/research/slim')
 
-tf.app.flags.DEFINE_string('type', 'split', 'Decides modification type. Can be split or mask')
 tf.app.flags.DEFINE_string('image_dir', '', 'Where the source WiderFaceDB images are'
                             'located. The image_Dir contains sub-folders of event scenes')
 tf.app.flags.DEFINE_string('gt_path', '', 'Filepath of the ground truth txt file')
@@ -50,8 +48,6 @@ tf.app.flags.DEFINE_float('aspect_ratio', -1.0, 'Aspect ratio (WIDTH/HEIGHT) of 
                         'If negatives, ARs are not changed.')
 
 FLAGS = tf.app.flags.FLAGS
-
-OPS = ['mask', 'split']
 
 def is_small_face(face_width, face_height, image_width, image_height, min_size):
     '''
@@ -295,12 +291,32 @@ def bound_image_size(data, max_width, buff_dir='.'):
     return data_new
 
 
-def modify_wider_face_db(operation, db_path, gt_path, write_db_path, write_gt_path, min_size, aspect_ratio):
-    if not operation in OPS:
-        print('Operation type not defined')
-        return None
+def find_small_and_large_faces(annos, threshold):
+    larges = filter(lambda x: x['w'] >= threshold, annos)
+    smalls = filter(lambda x: x['w'] < threshold, annos)
 
-    wdb = wider_face_explorer.wider_face_db(db_path, gt_path)
+    return smalls, larges
+
+
+def find_bounding_box(annos):
+    l = min([a['x'] for a in annos])
+    t = min([a['y'] for a in annos])
+    r = max([a['x'] + a['w'] for a in annos])
+    b = max([a['y'] + a['h'] for a in annos])
+    return {'l':l, 't': t, 'r':r, 'b':b}
+
+
+def check_overlap(bb1, bb2):
+    if bb1['l'] > bb2['r'] or bb1['r'] < bb2['l']:
+        return False
+    if bb1['t'] > bb2['b'] or bb1['b'] < bb2['t']:
+        return False
+
+    return True
+
+def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, RELTH, aspect_ratio):
+
+    wdb = widerface_explorer.wider_face_db(db_path, gt_path)
     tmp_path = os.path.join(os.path.dirname(db_path), 'tmp')
 
     if not os.path.exists(tmp_path):
@@ -313,45 +329,124 @@ def modify_wider_face_db(operation, db_path, gt_path, write_db_path, write_gt_pa
     with open(write_gt_path, 'w') as wgt:
         total_images = wdb.get_image_count()
 
+        cnt_small_ignore = 0
+        cnt_small_use = 0
+        cnt_no_face = 0
+        cnt_large_use = 0
+
+        cv2.namedWindow('image')
+        cv2.moveWindow("image", 0, 0);
+
+        ### we have two tresholds: absth, relth
+
+        ### ignore if largest face < absth (=48 pix)
+
         for idx in range(total_images):
             data = wdb.get_annos_by_image_index(idx)
 
             src_path = data['image_path']
+            annos = data['annos']
+            widths = [a['w'] for a in annos]
 
-            # crop image to meet the aspect ratio constraint (if any)
-            if aspect_ratio > 0.0:
-                data, ar2 = crop_to_aspect_ratio(data, aspect_ratio, tmp_path)
+            if not widths:      # no annotations -> pure negative image
+                cnt_no_face += 1
+            elif max(widths) < ABSTH:      # larges < absth, ignore
+                # print('max is too small: %d < 48' % max(widths))
+                image = cv2.imread(src_path)
+                W, H = image.shape[0:2]
 
-            data = bound_image_size(data, 640, tmp_path)    # bound image width to 1600, maintaining the aspect ratio
+                # cv2.line(image, (0, 0), (W, H), (0, 0, 255), 3)
+                # cv2.line(image, (W, 0), (0, H), (0, 0, 255), 3)
+                # cv2.imshow('image', image)
+                # cv2.waitKey(10)
+                cnt_small_ignore += 1
+            else:
+                image = cv2.imread(src_path)
+                W, H = image.shape[0:2]
 
-            # no need now
-            #if aspect_ratio > 0.0 and max([aspect_ratio, ar2]) / float(min([aspect_ratio, ar2])) > 1.5:    # ignore if diff too much
-            #    skipped += 1
-            #    print("skipped %d images"%skipped)
-            #    continue
+                relmin = min(widths) / float(W)
 
-            # prepare paths to write results
-            image_path = data['image_path']
+                if relmin >= RELTH:  # no problem
+                    cnt_large_use += 1
+                else:
+                    cnt_small_use += 1
 
-            dst_path = src_path.replace(os.path.normpath(db_path), os.path.normpath(write_db_path))
-            dir_path = os.path.dirname(dst_path)
+            # else:
+            #     smalls, larges = find_small_and_large_faces(annos, 48)
+            #
+            #     if len(smalls) == 0:
+            #         cnt_large_use += 1
+            #     elif len(larges) == 0:
+            #         cnt_small_ignore += 1
+            #     else:
+            #         small_bb = find_bounding_box(smalls)
+            #         large_bb = find_bounding_box(larges)
+            #
+            #         color_small = None
+            #         color_large = None
+            #
+            #         if not check_overlap(small_bb, large_bb):
+            #             cnt_small_use += 1
+            #             color_small = (0, 255, 0)
+            #             color_large = (0, 255, 0)
+            #         else:
+            #             cnt_small_ignore += 1
+            #             color_small = (0, 0, 255)
+            #             color_large = (255, 0, 0)
+            #
+            #         image = cv2.imread(src_path)
+            #         W, H = image.shape[0:2]
+            #         cv2.rectangle(image, (small_bb['l'], small_bb['t']), (small_bb['r'], small_bb['b']), color_small, 2)
+            #         cv2.rectangle(image, (large_bb['l'], large_bb['t']), (large_bb['r'], large_bb['b']), color_large, 2)
+            #
+            #         for s in smalls:
+            #             cv2.rectangle(image, (s['x'], s['y']), (s['x']+s['w'], s['y']+s['h']), (80, 80, 255), 1)
+            #         for l in larges:
+            #             cv2.rectangle(image, (l['x'], l['y']), (l['x'] + l['w'], l['y'] + l['h']), (255, 80, 80), 1)
+            #         cv2.imshow('image', image)
+            #         cv2.waitKey(-1)
 
-            if not os.path.exists(dir_path):
-                os.makedirs(dir_path)
+        print('small to ignore: %d / %d (%.2f%%)' % (
+        cnt_small_ignore, total_images, (cnt_small_ignore * 100.0 / total_images)))
+        print('small to use: %d / %d (%.2f%%)' % (
+        cnt_small_use, total_images, (cnt_small_use * 100.0 / total_images)))
+        print('large to use: %d / %d (%.2f%%)' % (
+        cnt_large_use, total_images, (cnt_large_use * 100.0 / total_images)))
 
-            filename = os.path.basename(dst_path)
-            dirname = os.path.dirname(dst_path).rsplit('/', 1)[1]
-
-            header = os.path.join(dirname, filename)
-
-            # crop or split, where actual image createion happens
-            if operation =='mask':
-                mask_and_copy(data, min_size, dst_path, wgt, header)
-            else:   # split
-                ignore_or_copy(data, min_size, dst_path, wgt, header)
-
-            if idx % 100 == 0:
-                print("image %d: %s" % (idx, image_path))
+            # # crop image to meet the aspect ratio constraint (if any)
+            # if aspect_ratio > 0.0:
+            #     data, ar2 = crop_to_aspect_ratio(data, aspect_ratio, tmp_path)
+            #
+            # data = bound_image_size(data, 640, tmp_path)    # bound image width to 1600, maintaining the aspect ratio
+            #
+            # # no need now
+            # #if aspect_ratio > 0.0 and max([aspect_ratio, ar2]) / float(min([aspect_ratio, ar2])) > 1.5:    # ignore if diff too much
+            # #    skipped += 1
+            # #    print("skipped %d images"%skipped)
+            # #    continue
+            #
+            # # prepare paths to write results
+            # image_path = data['image_path']
+            #
+            # dst_path = src_path.replace(os.path.normpath(db_path), os.path.normpath(write_db_path))
+            # dir_path = os.path.dirname(dst_path)
+            #
+            # if not os.path.exists(dir_path):
+            #     os.makedirs(dir_path)
+            #
+            # filename = os.path.basename(dst_path)
+            # dirname = os.path.dirname(dst_path).rsplit('/', 1)[1]
+            #
+            # header = os.path.join(dirname, filename)
+            #
+            # # crop or split, where actual image createion happens
+            # if operation =='mask':
+            #     mask_and_copy(data, min_size, dst_path, wgt, header)
+            # else:   # split
+            #     ignore_or_copy(data, min_size, dst_path, wgt, header)
+            #
+            # if idx % 100 == 0:
+            #     print("image %d: %s" % (idx, image_path))
 
 
 def split_wider_face_db(db_path, gt_path, write_db_path, write_gt_path, min_size):
@@ -364,7 +459,7 @@ def split_wider_face_db(db_path, gt_path, write_db_path, write_gt_path, min_size
         output_gt_path: ground truth text file for images in 'write_image_path'
         min_size: threshold level
     """       
-    wdb = wider_face_explorer.wider_face_db(db_path, gt_path)
+    wdb = widerface_explorer.wider_face_db(db_path, gt_path)
 
     if not os.path.exists(os.path.dirname(write_gt_path)):
         os.makedirs(os.path.dirname(write_gt_path))
@@ -434,13 +529,14 @@ def main(_):
     OUTPUT_IMAGE_DIR = FLAGS.output_image_dir
     OUTPUT_GT_PATH = FLAGS.output_gt_path
     MIN_SIZE = FLAGS.min_size
-    TYPE = FLAGS.type
     ASPECT_RATIO = FLAGS.aspect_ratio
+    ABSTH = 48
+    RELTH = 0.1
 
-    modify_wider_face_db(TYPE, IMAGE_DIR, GT_PATH, OUTPUT_IMAGE_DIR, OUTPUT_GT_PATH, MIN_SIZE, ASPECT_RATIO)
+    refine_widerface_db(IMAGE_DIR, GT_PATH, OUTPUT_IMAGE_DIR, OUTPUT_GT_PATH, ABSTH, RELTH, ASPECT_RATIO)
 
 if __name__ == '__main__':
     tf.app.run()
 
-# python make_subset_wider_face.py --type=split --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_SPLIT_TEST/images --output_gt_path=/Volumes/Data/WIDER_SPLIT_TEST/gt_split.txt --min_size=0.1
-# python make_subset_wider_face.py --type=mask --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_MASK_TEST/images --output_gt_path=/Volumes/Data/WIDER_MASK_TEST/gt_mask.txt --min_size=0.1
+# python refine_widerface.py --type=split --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_SPLIT_TEST/images --output_gt_path=/Volumes/Data/WIDER_SPLIT_TEST/gt_split.txt --min_size=0.1
+# python refine_widerface.py --type=mask --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_MASK_TEST/images --output_gt_path=/Volumes/Data/WIDER_MASK_TEST/gt_mask.txt --min_size=0.1

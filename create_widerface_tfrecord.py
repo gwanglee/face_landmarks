@@ -12,7 +12,7 @@ Converts wider face detection dataset to TFRecords with a standard format allowi
     wider_face_train.tfrecord and wider_face_val.tfrecord
 
 Example usage:
-    python object_detection/dataset_tools/create_wider_face_tf_record.py \
+    python object_detection/dataset_tools/create_widerface_tfrecord.py \
         --data_dir=/dataset/root/wider_face \
         --output_path=/where/to/write/tfrecords \
         --label_map_path=data/face_detection_label_map.pbtxt
@@ -36,7 +36,7 @@ import cv2
 import tensorflow as tf
 import PIL.Image
 
-import wider_face_explorer
+import widerface_explorer
 
 sys.path.append('./models/research')
 sys.path.append('./models/research/slim')
@@ -164,7 +164,7 @@ def prepare_example(data, label_map_dict):
 def write_tfrecord(image_path, gt_path, tfrecord_path):
     writer = tf.python_io.TFRecordWriter(tfrecord_path)
 
-    wdb = wider_face_explorer.wider_face_db(image_path, gt_path)
+    wdb = widerface_explorer.wider_face_db(image_path, gt_path)
     total_images = wdb.get_image_count()
     
     for idx in range(total_images):
@@ -190,4 +190,4 @@ if __name__ == '__main__':
     tf.app.run()
 
 # run example
-# python create_wider_face_tf_record.py --data_dir=/home/gglee/Data/WiderFace/ --output_path=/home/gglee/Data/WiderFace/tfrecords/wider_mask_0.03.tfrecord --min_size=0.03
+# python create_widerface_tfrecord.py --data_dir=/home/gglee/Data/WiderFace/ --output_path=/home/gglee/Data/WiderFace/tfrecords/wider_mask_0.03.tfrecord --min_size=0.03
