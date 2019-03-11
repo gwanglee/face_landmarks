@@ -29,10 +29,9 @@ from shutil import copyfile
 
 import hashlib
 import io
-import os
 import sys
 import cv2
-
+from random import shuffle
 import tensorflow as tf
 import PIL.Image
 
@@ -85,10 +84,24 @@ def prepare_example(data, label_map_dict):
 
     for anno in data['annos']:
         if not anno['invalid']:     # ignore invalid faces
-            xmin.append(float(anno['x']) / width)
-            ymin.append(float(anno['y']) / height)
-            xmax.append(float(anno['x']+anno['w']) / width)
-            ymax.append(float(anno['y']+anno['h']) / height)
+            x0, y0 = float(anno['x']) / width, float(anno['y']) / height
+            x1, y1 = float(anno['x']+anno['w']) / width, float(anno['y']+anno['h']) / height
+
+            if not (x0 >= 0.0 and y0 >= 0.0 and x1 <= 1.0 and y1 <= 1.0):
+                img = cv2.imread(image_path)
+                print(img.shape)
+                print('[%d x %d]' % (width, height), anno)
+                cv2.rectangle(img, (anno['x'], anno['y']), (anno['x']+anno['w'], anno['y']+anno['h']), (0, 0, 255), 2)
+                cv2.imshow('inval', img)
+                cv2.waitKey(-1)
+
+            # assert x0 >= 0.0 and y0 >= 0.0 and x1 <= 1.0 and y1 <= 1.0, print('%f, %f, %f, %f' % (x0, y0, x1, y1))
+
+            xmin.append(x0)
+            ymin.append(y0)
+            xmax.append(x1)
+            ymax.append(y1)
+
             classes.append(int(1))  # we have face only
             classes_text.append("face")
             difficult_obj.append(anno['invalid'])
@@ -166,16 +179,18 @@ def write_tfrecord(image_path, gt_path, tfrecord_path):
 
     wdb = widerface_explorer.wider_face_db(image_path, gt_path)
     total_images = wdb.get_image_count()
+    idx = range(total_images)
+    shuffle(idx)
     
-    for idx in range(total_images):
-        data = wdb.get_annos_by_image_index(idx)
+    for i in idx:
+        data = wdb.get_annos_by_image_index(i)
 
         example = prepare_example(data, None)
         if example is not None:
             writer.write(example.SerializeToString())
 
-        if idx%100 == 0:
-            print("image %d: %s"%(idx, data['image_path']))
+        if i % 100 == 0:
+            print("image %d: %s" % (i, data['image_path']))
 
     writer.close()
 

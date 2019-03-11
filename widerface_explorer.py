@@ -57,11 +57,22 @@ class wider_face_db(object):
 
         annos = []
         for idx in idx_annos:
-            annos.append({'x': self._annos['x'][idx], 'y': self._annos['y'][idx], \
-                        'w': self._annos['w'][idx], 'h': self._annos['h'][idx], \
-                        'blur': self._annos['blur'][idx], 'expression': self._annos['expression'][idx], \
-                        'illumination': self._annos['illumination'][idx], 'occlusion': self._annos['occlusion'][idx], \
-                        'pose': self._annos['pose'][idx], 'invalid': self._annos['invalid'][idx]
+            annos.append({'x': self._annos['x'][idx],
+                          'y': self._annos['y'][idx],
+                          'w': self._annos['w'][idx],
+                          'h': self._annos['h'][idx],
+
+                          'l': self._annos['x'][idx],
+                          't': self._annos['y'][idx],
+                          'r': self._annos['x'][idx] + self._annos['w'][idx],
+                          'b': self._annos['y'][idx] + self._annos['h'][idx],
+
+                          'blur': self._annos['blur'][idx],
+                          'expression': self._annos['expression'][idx],
+                          'illumination': self._annos['illumination'][idx],
+                          'occlusion': self._annos['occlusion'][idx],
+                          'pose': self._annos['pose'][idx],
+                          'invalid': self._annos['invalid'][idx]
                         })
 
         return {'image_path': os.path.join(self._db_root_path, fpath), 'annos': annos}
@@ -197,7 +208,7 @@ def draw_annos(image, annos):
             color = (255, 0, 255)
 
         if inval == 1:
-            color = (50, 50, 50)
+            color = (0, 0, 0)
             strs.append("invalid")
 
         cv2.rectangle(image, (x, y), (x+w+1, y+h+1), (0, 0, 0), 2)
@@ -208,8 +219,11 @@ def draw_annos(image, annos):
             cv2.putText(image, s, (x, y+i*20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
 
 if __name__ == "__main__":
-    DB_ROOT = '/Users/gglee/Data/WiderFace/WIDER_val/images'
-    GT_PATH = '/Users/gglee/Data/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt'
+    # DB_ROOT = '/Users/gglee/Data/WiderFace/WIDER_val/images'
+    # GT_PATH = '/Users/gglee/Data/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt'
+    DB_ROOT = '/Users/gglee/Data/tmp'
+    GT_PATH = '/Users/gglee/Data/tmp/gt.txt'
+
     SAVE_PATH = '/Users/gglee/Data/WiderFace'
     
     wdb = wider_face_db(DB_ROOT, GT_PATH)
@@ -218,7 +232,7 @@ if __name__ == "__main__":
 
     print("DB load: %d images, %d annotations"%(total_images, total_annotations))
 
-    for i in range(10):     # draw 10 images randomly
+    for i in range(100):     # draw 10 images randomly
         idx = randint(0, total_images)
         data = wdb.get_annos_by_image_index(idx)
 
