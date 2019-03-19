@@ -1,10 +1,15 @@
 import os
 # from PIL import Image, ImageDraw
 import cv2
+from copy import deepcopy
 
 # todo:
 # 1) support menpo dataset
 # 2) work with face detection info
+
+DEBUG = False
+EXTEND = 0.1
+PATCH_SIZE = 56
 
 def getFiles(folder_path):
     '''
@@ -16,7 +21,7 @@ def getFiles(folder_path):
 
     files = []
     for f in os.listdir(folder_path):
-        if not f.startswith('.') and f.endswith('png'):
+        if not f.startswith('.') and (f.endswith('png') or f.endswith('jpg')):
             basename = os.path.splitext(f)[0]
             pts_path = os.path.join(folder_path, basename + '.pts')
             if os.path.exists(pts_path):
@@ -64,7 +69,7 @@ def getBoundingBox(pts):
     '''
     x = [p[0] for p in pts]
     y = [p[1] for p in pts]
-    return [min(x), min(y), max(x), max(y)]
+    return {'x': min(x), 'y': min(y), 'w': max(x)-min(x), 'h': max(y)-min(y)}
 
 
 def normalizePointsWithRect(pts, faceRect):
@@ -74,9 +79,8 @@ def normalizePointsWithRect(pts, faceRect):
     :param faceRect:  [l, t, r, b]
     :return:
     '''
-    bbox = faceRect
-    l, t = bbox[0], bbox[1]
-    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    l, t = faceRect['x'], faceRect['y']
+    w, h = faceRect['w'], faceRect['h']
 
     normed = [[(p[0] - l) / w, (p[1] - t) / h] for p in pts]
     return normed
@@ -114,8 +118,8 @@ def loadDetection(image_path, det_name, th=0.1):
         return dets
 
 def getOverlap(box1, box2):
-    l0, t0, r0, b0 = box1[0], box1[1], box1[2], box1[3]
-    l1, t1, r1, b1 = box2[0], box2[1], box2[2], box2[3]
+    l0, t0, r0, b0 = box1['x'], box1['y'], box1['x']+box1['w'], box1['y']+box1['h']
+    l1, t1, r1, b1 = box2['x'], box2['y'], box2['x']+box2['w'], box2['y']+box2['h']
 
     if l0 > r1 or r0 < l1:
         return 0.0
@@ -141,16 +145,23 @@ def findBestMatchingBox(target, detections):
     :return:
     '''
 
+    if len(detections) == 0:
+        return None
+
     max_overlap = 0.0
-    max_index = 0
+    max_index = -1
 
     for i, b in enumerate(detections):
-        cur_overlap = getOverlap(target, [b['x'], b['y'], b['x']+b['w'], b['y']+b['h']])
-        if cur_overlap > max_overlap:
-            max_index = i
-            max_overlap = cur_overlap
+        if b['conf'] > 0.3:
+            cur_overlap = getOverlap(target, b)
+            if cur_overlap > max_overlap and cur_overlap > 0.1:
+                max_index = i
+                max_overlap = cur_overlap
 
-    return detections[max_index]
+    if max_index >= 0:
+        return detections[max_index]
+    else:
+        return None
 
 
 def square_and_expand(box, r=0.0):
@@ -159,69 +170,138 @@ def square_and_expand(box, r=0.0):
     :param box:
     :return:
     '''
-    W = box[2] - box[0]
-    H = box[3] - box[1]
 
-    if W > H:
-        diff = (W - H)/2
-        box[1] -= diff
-        box[3] += diff
+    w = box['w']
+    h = box['h']
+    cx = box['x'] + w/2.0
+    cy = box['y'] + h/2.0
+
+    tw = th = max(w, h)*(1+r)
+    tx = cx - tw/2.0
+    ty = cy - th/2.0
+
+    # offset['x'] = box['x'] - int(tx + 0.5)
+    # offset['y'] = box['y'] - int(ty + 0.5)
+
+    box['x'] = int(tx + 0.5)
+    box['y'] = int(ty + 0.5)
+    box['w'] = int(tw + 0.5)
+    box['h'] = int(th + 0.5)
+
+    return box#, offset
+
+
+def is_inside(in_box, out_box):
+    l0, t0, r0, b0 = in_box['x'], in_box['y'], in_box['x']+in_box['w'], in_box['y']+in_box['h']
+    l1, t1, r1, b1 = out_box['x'], out_box['y'], out_box['x']+out_box['w'], out_box['y']+out_box['h']
+
+    if l0 >= l1 and t0 >= t1 and r0 <= r1 and b0 <= b1:
+        return True
     else:
-        diff = (H - W)/2
-        box[0] -= diff
-        box[2] += diff
-
-    W = box[2] - box[0]
-    H = box[3] - box[1]
-
-    box[0] -= W*r/2
-    box[1] -= H*r/2
-    box[2] += W*r/2
-    box[3] += W*r/2
-
-    return box
+        return False
 
 
 if __name__ == '__main__':
-    PATH = ['/Users/gglee/Data/Landmark/300W/01_Indoor', '/Users/gglee/Data/Landmark/300W/02_Outdoor',
-            '/Users/gglee/Data/Landmark/menpo_train_release']
+    PATH = [
+        '/Users/gglee/Data/Landmark/300W/01_Indoor',
+        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
+        '/Users/gglee/Data/Landmark/menpo_train_release'
+    ]
+
     WRITE_PATH = '/Users/gglee/Data/Landmark/export'
-    DET_NAME = '1207'
-    PATCH_SIZE = 64
+    DET_NAME = '160v3'
+
+    WRITE_PATH = os.path.join(WRITE_PATH, DET_NAME)
 
     if not os.path.exists(WRITE_PATH):
         os.makedirs(WRITE_PATH)
 
     import numpy as np
 
+    cnt_less_point = 0
+    cnt_on_the_border = 0
+    cnt_generated = 0
+    cnt_no_overlap = 0
+    cnt_total = 0;
+
     for P in PATH:
         samples = getFiles(P)
+        cnt_total += len(samples)
 
         for i, s in enumerate(samples):
             image = cv2.imread(s[0], cv2.IMREAD_COLOR)
+
+            if DEBUG:
+                image_debug = deepcopy(image)
+
+            H, W, _ = image.shape
             points = loadLandmarkData(s[1])
+            frame = {'x': 0, 'y': 0, 'w': W, 'h': H}
 
             if not points or len(points) != 68:
+                cnt_less_point += 1
                 continue
 
-            bbox = getBoundingBox(points)
-            cx, cy = (bbox[0] + bbox[2])/2.0, (bbox[1] + bbox[3])/2.0
-            w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
+            pbbox = getBoundingBox(points)          # point bounding box
+            cbox = pbbox
 
-            ibbox = [cx-w/2, cy-h/2, cx+w/2, cy+h/2]
+            if DEBUG:
+                cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])), (int(pbbox['x']+pbbox['w']), int(pbbox['y']+pbbox['h'])), (0, 255, 255))
+                for p in points:
+                    cv2.circle(image_debug, (int(p[0]+0.5), int(p[1]+0.5)), 2, (0, 255, 0))
 
             if DET_NAME:
                 dets = loadDetection(s[0], DET_NAME)
-                best = findBestMatchingBox(ibbox, dets)
-                ibbox = [best['x'], best['y'], best['x']+best['w'], best['y']+best['h']]
+                best = findBestMatchingBox(pbbox, dets)     # best matching detection
 
-            ibbox = square_and_expand(ibbox, 0.1)
+                if not best:
+                    cnt_no_overlap += 1
 
-            W, H = image.shape[0:2]
-            if ibbox[0] < 0 or ibbox[1] < 0 or ibbox[2] > W or ibbox[3] > H:
-                continue
+                    if DEBUG:
+                        for d in dets:
+                            if d['conf'] > 0.1:
+                                cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])),
+                                              (int(d['conf']*255, 0, int(d['conf']*255))))
+                        cv2.imshow('no_best', image_debug)
+                        cv2.waitKey(-1)
+                    continue
 
-            cropped = image[int(ibbox[1]):int(ibbox[3]), int(ibbox[0]):int(ibbox[2]), :]
+                best = square_and_expand(best, EXTEND)
+
+                if DEBUG:
+                    cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
+                                  (int(best['x'] + best['w']), int(best['y'] + best['h'])), (0, 0, 255))
+
+                if not is_inside(pbbox, best):
+                    cnt_on_the_border += 1
+
+                    if DEBUG:
+                        cv2.imshow('point_out_of_box', image_debug)
+                        cv2.waitKey(-1)
+                    continue
+
+                if not is_inside(best, frame):      # or just clip it?
+                    cnt_on_the_border += 1
+
+                    if DEBUG:
+                        cv2.imshow('point_out_of_frame', image_debug)
+                        cv2.waitKey(-1)
+                    continue
+
+                cbox = best
+            else:
+                cbox = square_and_expand(pbbox, EXTEND)  # crop box
+
+            # if DEBUG:
+            #     cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
+            #                   (int(pbbox['x'] + pbbox['w']), int(pbbox['y'] + pbbox['h'])),
+            #                   (255, 0, 255), 1)
+            #     cv2.rectangle(image_debug, (int(cbox['x']), int(cbox['y'])), (int(cbox['x'] + cbox['w']),
+            #                                                                   int(cbox['y'] + cbox['h'])),
+            #                   (0, 255, 0), 1)
+            #     cv2.imshow('debug', image_debug)
+
+            cropped = image[int(cbox['y']):int(cbox['y']+cbox['h']), int(cbox['x']):int(cbox['x']+cbox['w']), :]
             cropped = cv2.resize(cropped, (PATCH_SIZE, PATCH_SIZE))
 
             bname = os.path.splitext(os.path.basename(s[0]))[0]
@@ -229,15 +309,26 @@ if __name__ == '__main__':
             arr = np.array(cropped).astype(dtype=float)
             arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
 
-            normed = normalizePointsWithRect(points, [int(ibbox[0]), int(ibbox[1]), int(ibbox[2]), int(ibbox[3])])
+            normed = normalizePointsWithRect(points, cbox)
             pts = np.array(normed)
             pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
 
-            if i % 10 == 0:
-                w, h = PATCH_SIZE, PATCH_SIZE
-                for p in normed:
-                    l, t, r, b = int(p[0]*w) - 1, int(p[1]*h) - 1, int(p[0]*w) + 1, int(p[1]*h) + 1
-                    cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
+            w, h = PATCH_SIZE, PATCH_SIZE
+            for p in normed:
+                l, t, r, b = int(p[0]*w) - 1, int(p[1]*h) - 1, int(p[0]*w) + 1, int(p[1]*h) + 1
+                cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
 
+            cv2.imwrite(os.path.join(WRITE_PATH, bname + '.jpg'), cropped)
+            cnt_generated += 1
+
+            if DEBUG:
+                cv2.imshow('cropped', cropped)
+                cv2.waitKey(500)
+
+            if i % 10 == 0:
+                print('[%d / %d]: %s' %(i, len(samples), s[0]))
                 cv2.imshow('patch', cropped)
                 key = cv2.waitKey(10)
+
+    print('generated: %d, border_out: %d, no_overlap: %d, less_point: %d, total: %d'%
+          (cnt_generated, cnt_on_the_border, cnt_no_overlap, cnt_less_point, cnt_total))

@@ -221,8 +221,8 @@ def draw_annos(image, annos):
 if __name__ == "__main__":
     # DB_ROOT = '/Users/gglee/Data/WiderFace/WIDER_val/images'
     # GT_PATH = '/Users/gglee/Data/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt'
-    DB_ROOT = '/Users/gglee/Data/tmp'
-    GT_PATH = '/Users/gglee/Data/tmp/gt.txt'
+    DB_ROOT = '/Users/gglee/Data/tmp_train'
+    GT_PATH = '/Users/gglee/Data/tmp_train/gt_train.txt'
 
     SAVE_PATH = '/Users/gglee/Data/WiderFace'
     

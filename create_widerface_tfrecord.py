@@ -70,6 +70,7 @@ def prepare_example(data, label_map_dict):
 
     with tf.gfile.GFile(image_path, 'rb') as fid:
         encoded_jpg = fid.read()
+
     encoded_jpg_io = io.BytesIO(encoded_jpg)
     image = PIL.Image.open(encoded_jpg_io)
     if image.format != 'JPEG':
@@ -205,4 +206,4 @@ if __name__ == '__main__':
     tf.app.run()
 
 # run example
-# python create_widerface_tfrecord.py --data_dir=/home/gglee/Data/WiderFace/ --output_path=/home/gglee/Data/WiderFace/tfrecords/wider_mask_0.03.tfrecord --min_size=0.03
+#python create_widerface_tfrecord.py --image_dir=/Users/gglee/Data/WiderRefine/train_random_150 --output_path=/Users/gglee/Data/WiderRefine/train_random_150/train_random_150.tfrecord --gt_path=/Users/gglee/Data/WiderRefine/train_random_150/wider_refine_train_gt.txt

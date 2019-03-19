@@ -9,6 +9,8 @@ import net
 from random import shuffle
 
 CH = 3
+INPUT_SIZE = 64
+BATCH_SIZE = 64
 
 slim = tf.contrib.slim
 
@@ -27,13 +29,13 @@ def prepare_data_list(inpath):
     return lists
 
 def read_data(list2train, cur_pos, batch_size=10):
-    data = np.zeros((batch_size, 48, 48, CH), dtype=np.float32)
+    data = np.zeros((batch_size, INPUT_SIZE, INPUT_SIZE, CH), dtype=np.float32)
     ans = np.zeros((batch_size, 68*2), dtype=np.float32)
 
     for i in range(batch_size):
         cur_pos += 1
         p = cur_pos % len(list2train)
-        d = np.reshape(np.fromfile(list2train[p][0], dtype=float), (48, 48, CH))
+        d = np.reshape(np.fromfile(list2train[p][0], dtype=float), (INPUT_SIZE, INPUT_SIZE, CH))
         a = np.fromfile(list2train[p][1], dtype=float)
         data[i, :, :, :] = d * 2 / 255.0 - 1.0       # norm between -1 to 1
         ans[i, :] = a
@@ -46,7 +48,7 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
 
     with slim.arg_scope(net.arg_scope()):
 
-        data_ph = tf.placeholder(tf.float32, [None, 48, 48, CH], name='input')
+        data_ph = tf.placeholder(tf.float32, [None, INPUT_SIZE, INPUT_SIZE, CH], name='input')
         ans_ph = tf.placeholder(tf.float32, [None, 68*2])
 
         estims, _ = net.lannet(data_ph, is_training=True)
@@ -55,12 +57,12 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
         starter_learning_rate = 0.01
 
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, len(list2train), #len(list2train)/batch_size*4,
-                                                   0.998, staircase=True)
+                                                   0.995, staircase=True)
         # loss = tf.losses.mean_squared_error(ans_ph, estims, scope='mse')
         loss = tf.losses.huber_loss(ans_ph, estims, delta=0.01, scope='mse')
         # train_op = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss, global_step=global_step)
-        train_op = tf.train.AdamOptimizer().minimize(loss)
-        ema = tf.train.ExponentialMovingAverage(decay=0.999)
+        train_op = tf.group(tf.train.AdamOptimizer().minimize(loss), tf.assign_add(global_step, batch_size))
+        # ema = tf.train.ExponentialMovingAverage(decay=0.999)
 
         init_op = tf.group(tf.global_variables_initializer(),
                            tf.local_variables_initializer())
@@ -119,5 +121,5 @@ def train(list2train, max_epoch=16, batch_size=32, num_threads=4, save_path='./t
         sess.close()
 
 if __name__ == '__main__':
-    train_list = prepare_data_list('/Users/gglee/Data/Landmark/300W/export')
-    train(train_list, max_epoch=29, save_path='/Users/gglee/Data/Landmark/300W/model')
+    train_list = prepare_data_list('/Users/gglee/Data/Landmark/export/160v3')
+    train(train_list, max_epoch=999, save_path='/Users/gglee/Data/Landmark/300W/model_160v3',batch_size=BATCH_SIZE)

@@ -47,77 +47,17 @@ tf.app.flags.DEFINE_string('output_image_dir', '', 'Where to store the split set
                             'but only images containing faces larger than min_size')
 tf.app.flags.DEFINE_string('output_gt_path', '', 'Ground truth txtfile path corresponds to'
                             'dataset in output_image_dir')
-tf.app.flags.DEFINE_float('min_size', 0.99, 'ignore faces smaller than min_size (0.0~1.0).'
-                           'faces smaller than min_size will also be masked out'
-                           'in the image.')
-tf.app.flags.DEFINE_float('aspect_ratio', -1.0, 'Aspect ratio (WIDTH/HEIGHT) of output images.'
-                        'If negatives, ARs are not changed.')
+tf.app.flags.DEFINE_integer('min_abs_size', 30, 'ignore faces smaller than min_size pixels')
+tf.app.flags.DEFINE_float('min_rel_size', 0.06, 'ignore faces small than min_rel_size * image_size')
 
 FLAGS = tf.app.flags.FLAGS
 
-
-def mask_and_copy(data, min_size, image_write_path, write_file, header):
-    """If small face exists, mask those out and then copy the image and write modified ground truth
-    """
-    image = cv2.imread(data['image_path'])
-    assert image is not None, "Failed to load image: %s"%(data['image_path'])
-
-    height, width = image.shape[0:2]
-
-    anno2write = []
-    negative = False
-    if len(data['annos']) == 0:
-        negative = True
-    else:
-        for a in data['annos']:
-            x, y, w, h = a['x'], a['y'], a['w'], a['h']
-
-            if is_small_face(w, h, width, height, min_size):
-                assert w > 0 and h > 0, '%s\n(x, y, w, h)=(%.2f, %.2f, %.2f, %.2f)' % (data['image_path'], x, y, w, h)
-                rrect = ((int(x + w / 2), int(y + h / 2)), (int(w), int(h)), 0.0)
-                cv2.ellipse(image, rrect, (0, 0, 0), -1)
-            else:
-                anno2write.append(a)
-
-    write_file.write("%s\n" % (header))
-
-    if negative:
-        write_file.write("0\n")
-    else:
-        write_file.write("%d\n" % (len(anno2write)))
-
-        for a in anno2write:
-            write_file.write(("%d %d %d %d %d %d %d %d %d %d\n") % ( \
-                a['x'], a['y'], a['w'], a['h'], \
-                a['blur'], a['expression'], a['illumination'], \
-                a['invalid'], a['occlusion'], a['pose']))
-
-    #if not os.path.exists(image_write_dir):
-    #    os.makedirs(image_write_dir)
-    #image_write_path = os.path.join(image_write_dir, os.path.splitext(os.path.basename(data['image_path']))[0])
-    cv2.imwrite(image_write_path, image)
-
-
-def expand_letter_box(image, aspect_ratio):
-
-    HEIGHT, WIDTH = image.shape[0:2]
-    ar = WIDTH/float(HEIGHT)
-
-    if ar > aspect_ratio:   # wider image -> expand height
-        exp_height = int(abs(WIDTH / aspect_ratio - HEIGHT) / 2)
-        cx, cy = 0, -exp_height
-        image_cropped = cv2.copyMakeBorder(image, exp_height, exp_height, 0, 0, cv2.BORDER_REPLICATE)
-    else:
-        exp_width = int(abs(HEIGHT * aspect_ratio - WIDTH) / 2)
-        cx, cy = -exp_width, 0
-        image_cropped = cv2.copyMakeBorder(image, 0, 0, exp_width, exp_width, cv2.BORDER_REPLICATE)
-
-    return image_cropped, cx, cy
-
+MIN_FRAME_SIZE = 200
 
 def find_small_and_large_faces(annos, threshold):
     larges = filter(lambda x: x['w'] >= threshold, annos)
-    smalls = filter(lambda x: x['w'] < threshold, annos)
+    smalls = filter(lambda x: 10 < x['w'] < threshold, annos)
+    drop = filter(lambda x: x['w'] <= 10, annos)
 
     return smalls, larges
 
@@ -190,7 +130,7 @@ def pick_valid_crop(frame_size, lb, sb):
     res = []
 
     num_lb = len(lb)
-    MULTIPLE = 3 if num_lb < 4 else 1
+    MULTIPLE = 2 if num_lb < 4 else 1
 
     for i in range(num_lb):
         for j in range(i, num_lb):
@@ -237,12 +177,16 @@ def pick_valid_crop(frame_size, lb, sb):
                     out_box['b'] = int(cy + obw / 2) if int(cy + obw / 2) > bbox['b'] else int(
                         (bbox['b'] + out_box['b']) / 2)
 
-                MAX_TRY = 30
+                MAX_TRY = 40
                 ARTH = 1.5
 
                 # out_box와 bbox 사이의 box를 random search
-                for m in range(MULTIPLE):
-                    max_score = 0.0
+                if i == j:
+                    MULTI_TRY = MULTIPLE*2
+                else:
+                    MULTI_TRY = MULTIPLE
+
+                for m in range(MULTI_TRY):
                     max_box = out_box
                     max_box['score'] = 0.0
 
@@ -257,18 +201,23 @@ def pick_valid_crop(frame_size, lb, sb):
                         curar = rw / rh
 
                         if 1/ARTH < curar < ARTH:       # AR은 가로, 세로 모두 ARTH 이하이어야 함
-                            score = min(curar, 4.0/3.0) / max(curar, 4.0/3.0) * rw*rh       # 4:3에 가까우면서 큰 것을 찾는다
+                            cur_box = {'l': rl, 't': rt, 'r': rr, 'b': rb}
+                            if min(rr-rl, rb-rt) > MIN_FRAME_SIZE and not on_the_border(cur_box, lb):
+                                res.append(cur_box)
 
-                            if score > max_score:
-                                max_box = {'l': rl, 't': rt, 'r': rr, 'b': rb, 'score': score}
+    MAX_RETURN = 5
 
-                    # validity check for the last
-                    h, w = max_box['b'] - max_box['t'], max_box['r'] - max_box['l']
-                    if min(w, h) > 300 and not on_the_border(max_box, lb) and not is_redundant(max_box, res):
-                        res.append(max_box)
+    if len(res) > MAX_RETURN:
+        pick = []
+        while len(pick) < MAX_RETURN and res:
+            sel = randrange(len(res))
+            pick.append(res[sel])
+            # res = filter(lambda r: not (1/1.2 < (r['r']-r['b']) / (res[sel]['r']-res[sel]['l']) < 1.2), res)
+            # res = filter(lambda r: get_iou(r, res[sel]) < 0.3, res)
+            res = filter(lambda r: not (1 / 1.2 < (r['r'] - r['l']) / (res[sel]['r'] - res[sel]['l']) < 1.2), res)
+            # res.remove(res[sel])
 
-    if len(res) > 0:
-        res = sorted(res, key = itemgetter('score'), reverse=True)
+        return pick
 
     return res
 
@@ -304,7 +253,7 @@ def check_inside(inbox, outbox):
         return False
 
 
-def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, RELTH, aspect_ratio):
+def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, RELTH):
 
     wdb = widerface_explorer.wider_face_db(db_path, gt_path)
     tmp_path = os.path.join(os.path.dirname(db_path), 'tmp')
@@ -331,7 +280,7 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, R
             image = cv2.imread(image_path)
             H, W = image.shape[0:2]
             crop_saved = 0
-            MAX_OUTPUT_PER_IMAGE = 5
+            MAX_OUTPUT_PER_IMAGE = 6
 
             annos, invannos = refine_annos(data['annos'])       # remove invalid and heavily occluded faces
             small, large = find_small_and_large_faces(annos, ABSTH)     # find faces smaller than and larger than ABSTH
@@ -555,15 +504,12 @@ def main(_):
     GT_PATH = FLAGS.gt_path
     OUTPUT_IMAGE_DIR = FLAGS.output_image_dir
     OUTPUT_GT_PATH = FLAGS.output_gt_path
-    MIN_SIZE = FLAGS.min_size
-    ASPECT_RATIO = FLAGS.aspect_ratio
-    ABSTH = 36
-    RELTH = 0.1
+    ABSTH = FLAGS.min_abs_size
+    RELTH = FLAGS.min_rel_size
 
-    refine_widerface_db(IMAGE_DIR, GT_PATH, OUTPUT_IMAGE_DIR, OUTPUT_GT_PATH, ABSTH, RELTH, ASPECT_RATIO)
+    refine_widerface_db(IMAGE_DIR, GT_PATH, OUTPUT_IMAGE_DIR, OUTPUT_GT_PATH, ABSTH, RELTH)
 
 if __name__ == '__main__':
     tf.app.run()
 
-# python refine_widerface.py --type=split --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_SPLIT_TEST/images --output_gt_path=/Volumes/Data/WIDER_SPLIT_TEST/gt_split.txt --min_size=0.1
-# python refine_widerface.py --type=mask --image_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --gt_path=/Volumes/Data/FaceDetectionDB/WiderFace/wider_face_split/wider_face_val_bbx_gt.txt --output_image_dir=/Volumes/Data/WIDER_MASK_TEST/images --output_gt_path=/Volumes/Data/WIDER_MASK_TEST/gt_mask.txt --min_size=0.1
+ # python refine_widerface.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/train/ --output_gt_path=/Users/gglee/Data/WiderRefine/train/wider_refine_train_gt.txt

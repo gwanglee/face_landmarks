@@ -6,28 +6,29 @@ from time import time
 import cv2
 from shutil import rmtree
 import inference as infer
+from copy import deepcopy
 
 '''
 Usage:
 
 (1) to detect from camera:
 python detect_faces.py \
-        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_dir=/can/be/omitted] \ 
+        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
         [--write_dir_name=folder_name_to_save] [--dist=True]
         
 (2) to detect from a local video file:
 python detect_faces.py --video_path='/video/file/to/run/detection.avi' \
-        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_dir=/can/be/omitted] \ 
+        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
         [--write_dir_name=folder_name_to_save] [--dist=True]
         
 (3) to detect from images in a folder:
 python detect_faces.py --images_dir='/folder/name/to/load/images' \
-        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_dir=/can/be/omitted] \ 
+        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
         [--write_dir_name=folder_name_to_save] [--dist=True]
         
 (4) to detect from series of folders containing images:
 python detect_faces.py --folder_list='/some/file/containing/folder/names.txt' \
-        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_dir=/can/be/omitted] \ 
+        --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
         [--write_dir_name=folder_name_to_save] [--dist=True]
 '''
 
@@ -63,6 +64,9 @@ flags.DEFINE_bool('disp', 'True',
                   'If true, show detection images (only for file input)')
 
 FLAGS = flags.FLAGS
+
+
+LANDMARK_INPUT_SIZE = 64
 
 
 def prepare_filelist(folder_path):
@@ -135,8 +139,8 @@ if __name__ == '__main__':
     landmark_estimator = None
 
     if LANDMARK_CKPT_PATH != '':
-        assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
-        landmark_estimator = infer.Classifier(48, LANDMARK_CKPT_PATH)
+        # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
+        landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH)
 
     # set sources
     image_to_test = []
@@ -158,6 +162,11 @@ if __name__ == '__main__':
     else:
         use_camera = True
         cap = cv2.VideoCapture(0)
+
+
+    WRITE_WIDTH = 624
+    WRITE_HEIGHT = 352
+    video_writer = cv2.VideoWriter("/Users/gglee/Data/out.avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 15.0, (WRITE_WIDTH, WRITE_HEIGHT))
 
     # if FLAGS.save_images:
     #     if FLAGS.write_dir == '':
@@ -233,7 +242,8 @@ if __name__ == '__main__':
                         print('image not exist: %s'%image_path)
                         continue
 
-                image_np = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)    # need this? check performance
+                image_draw = deepcopy(image)
+                image_np = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
                 # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                 image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -254,7 +264,7 @@ if __name__ == '__main__':
 
                 # boxes = np.reshape(boxes, (len(boxes)/4, 4))
 
-                patches = np.zeros((8, 48, 48, 3), dtype=np.float32)
+                patches = np.zeros((8, LANDMARK_INPUT_SIZE, LANDMARK_INPUT_SIZE, 3), dtype=np.float32)
 
                 boxes = np.squeeze(boxes)
                 scores = np.squeeze(scores)
@@ -264,16 +274,17 @@ if __name__ == '__main__':
                 scale = 0.5
 
                 crop_boxes = []
-                SCORE_TH = 0.6
+                SCORE_TH = 0.5
 
                 for i, box in enumerate(boxes):
                     if scores[i] < SCORE_TH:
                         continue
 
-                    # assert box[1] < box[3] and box[0] < box[2], "%f > %f, %f > %f" % (box[1], box[3], box[0], box[1])
-
-                    # classify faces
                     l, t, r, b = int(box[1] * WIDTH), int(box[0] * HEIGHT), int(box[3] * WIDTH), int(box[2] * HEIGHT)
+
+                    cv2.rectangle(image_draw, (l, t), (r, b), (0, 0, 255), 2)   # red
+                    cv2.circle(image_draw, (l, t), 3, (255, 255, 0), -1)
+
                     w, h = r - l, b - t
 
                     if w == 0 or h == 0:
@@ -281,60 +292,45 @@ if __name__ == '__main__':
                         continue
 
                     cx, cy = (l + r) / 2.0, (b + t) / 2.0
+                    w, h = (r - l), (b - t)
+                    ts = max(w, h) * 1.2 / 2.0              # expand 20%
 
-                    w, h = w * scale, h * scale
-                    l, r = max(0, int(cx - w)), min(int(cx + w), WIDTH)
-                    t, b = max(0, int(cy - h)), min(int(cy + h), HEIGHT)
-
-                    if l == r:
-                        r = l + 1
-                    if t == b:
-                        b = t + 1
-                    t = b - (r - l)
-
+                    l = int(min(max(0.0, cx - ts), WIDTH))
+                    t = int(min(max(0.0, cy - ts), HEIGHT))
+                    r = int(min(max(0.0, cx + ts), WIDTH))
+                    b = int(min(max(0.0, cy + ts), HEIGHT))
                     crop_boxes.append([l, t, r, b])
 
+                    cv2.rectangle(image_draw, (l, t), (r, b), (0, 255, 0), 2)       # green: expanded
+
                 for i, box in enumerate(crop_boxes):
-                    # print(image.shape, box)
-                    face = image[box[1]:box[3], box[0]:box[2], :]
-
-                    # face = image[min(box[1], box[3]):max(box[1], box[3]), min(box[0], box[2]):max(box[0], box[2])]
-                    # print(face.shape)
-
                     if landmark_estimator:
                         if i < 8:
-                            patch = cv2.resize(face, (48, 48))
+                            l, t, r, b = box[0], box[1], box[2], box[3]
+                            face = image[t:b, l:r, :]
+
+                            patch = cv2.resize(face, (LANDMARK_INPUT_SIZE, LANDMARK_INPUT_SIZE))
                             patches[i, :, :, :] = ((np.asarray(patch).astype(np.float32))/255.0-1.0)
                             # verify = ((np.asarray(patches[i, :, :, 0]).squeeze()+1.0)*255.0).astype(np.uint8)
                             # cv2.imshow("verify", verify)
 
-                        landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
+                if LANDMARK_CKPT_PATH:
+                    landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
 
-                for i, box in enumerate(boxes):
-                    if scores[i] < SCORE_TH:
-                        break
-
-                    cv2.rectangle(image, (int(box[1] * WIDTH), int(box[0] * HEIGHT)),
-                                  (int(box[3] * WIDTH), int(box[2] * HEIGHT)), (0, 0, 255), 2)
-
-                    if landmark_estimator:
-                        patch = ((np.asarray(patches[i, :, :, 0]).squeeze() + 1.0) * 255.0).astype(np.uint8)
-
+                    for i, box in enumerate(crop_boxes):
+                        H, W = box[3]-box[1], box[2] - box[0]
                         for p in landmarks[i]:
-                            cv2.circle(patch, (int(p[0]*48), int(p[1]*48)), 1, (255, 255, 255))
-                        cv2.imshow("patch", patch)
+                            cv2.circle(image_draw, (int(box[0]+(p[0]*W)), int(box[1]+(p[1]*H))), 2, (0, 255, 255))
 
-                        cv2.rectangle(image, (int(crop_boxes[i][0]), int(crop_boxes[i][1])),
-                                      (int(crop_boxes[i][2]), int(crop_boxes[i][3])), (0, 255, 0), 2)
+                cv2.imshow("image", image_draw)
 
-                        H, W = (box[2]-box[0])*HEIGHT, (box[3]-box[1])*WIDTH
-                        for p in landmarks[i]:
-                            cv2.circle(image, (int(box[1]*WIDTH+(p[0]*W)), int(box[0]*HEIGHT+(H-W)+p[1]*W)), 2, (0, 255, 255))
-
-                cv2.imshow("image", image)
-
+                if video_writer.isOpened():
+                    image_write = cv2.resize(image_draw, (WRITE_WIDTH, WRITE_HEIGHT))
+                    video_writer.write(image_write)
+                    
                 key = cv2.waitKey(1)
                 if key == 113 or key == 120:
+                    video_writer.release()
                     break
 
                 # if FLAGS.save or FLAGS.disp or use_camera:
@@ -370,9 +366,8 @@ if __name__ == '__main__':
     end_time = time()
 
     print('===== task finished: %s seconds ======', end_time-start_time)
-#python detect_faces.py --checkpoint_dir=/Volumes/Data/Trained/WiderFaceSSD/freeze/300_small_valid/output_inference_graph.pb --label_map_path=/Users/gglee/Develop/FaceDetectionEmbedded/utils/data/face_detection_label_map.pbtxt --images_dir=/Volumes/Data/FaceDetectionDB/WiderFace/WIDER_val/images/ --write_dir=/Volumes/Data/FaceDetectionDB/WiderFace/test_wider_val --save_image=True --disp=True
-
-#python detect_faces.py --checkpoint_dir=/Users/gglee/Develop/emdfd/utils/train/ssd_darknet/ --label_map_path=/Users/gglee/Develop/emdfd/utils/data/face_detection_label_map.pbtxt
 
 # python detect_face.py --checkpoint_dir=/Users/gglee/Data/1207_face/
-# python detect_face.py --checkpoint_dir=/Users/gglee/Data/TFModels/ssd_wider_mn2_0.5_192_ar1
+# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
+# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
+# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
