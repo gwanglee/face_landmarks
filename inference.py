@@ -12,8 +12,7 @@ class Classifier(object):
     def __init__(self, input_size, model_path):
         self.input_size = input_size
 
-        with slim.arg_scope(net.arg_scope()):
-
+        with slim.arg_scope(net.arg_scope(weight_decay=0.0005)):
             with tf.Graph().as_default():
                 self.sess = tf.Session()
                 # Build a Graph that computes the logits predictions from the

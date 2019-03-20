@@ -209,7 +209,7 @@ if __name__ == '__main__':
     ]
 
     WRITE_PATH = '/Users/gglee/Data/Landmark/export'
-    DET_NAME = '160v3'
+    DET_NAME = '160v5'
 
     WRITE_PATH = os.path.join(WRITE_PATH, DET_NAME)
 
@@ -306,7 +306,7 @@ if __name__ == '__main__':
 
             bname = os.path.splitext(os.path.basename(s[0]))[0]
 
-            arr = np.array(cropped).astype(dtype=float)
+            arr = np.array(cropped).astype(dtype=np.uint8)
             arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
 
             normed = normalizePointsWithRect(points, cbox)
