@@ -3,6 +3,62 @@ import net
 
 slim = tf.contrib.slim
 
+tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', 'Directory for training and logging')
+tf.app.flags.DEFINE_float('weight_decay', 0.0005, 'The weight decay on the model weights')
+tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
+tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
+tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
+tf.app.flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate')
+tf.app.flags.DEFINE_float('end_learning_rate', 0.0001, 'The minimal lr used by a polynomial lr decay')
+tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.995, 'Learning rate decay factor')
+tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after which lr decays')
+tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
+tf.app.flags.DEFINE_integer('max_number_of_steps', None, 'The maximum number of training steps')
+tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
+
+FLAGS = tf.app.flags.FLAGS
+
+
+def _config_optimizer(learning_rate):
+    if FLAGS.optimizer == 'adadelta':
+        optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'adagrad':
+        optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'adam':
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'ftrl':
+        optimizer = tf.train.FtrlOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'momentum':
+        optimizer = tf.train.MomentumOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'rmsprop':
+        optimizer = tf.train.RMSPropOptimizer(learning_rate)
+    elif FLAGS.optimizer == 'sgd':
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    else:
+        raise ValueError('Optimizer [%s] was not recognized' % FLAGS.optimizer)
+
+    return optimizer
+
+
+def _config_learning_rate(num_samples_per_epoch, global_step):
+    decay_steps = int(num_samples_per_epoch * FLAGS.num_epochs_per_decay / FLAGS.batch_size)
+    if FLAGS.learning_rate_decay_type == 'exponential':
+        return tf.train.exponential_decay(FLAGS.learning_rate,
+                                          global_step,
+                                          decay_steps,
+                                          FLAGS.learning_rate_decay_factor,
+                                          staircase=True,
+                                          name='exponential_decay_learning_rate')
+    elif FLAGS.learning_rate_decay_type == 'fixed':
+        return tf.constant(FLAGS.learning_rate, name='fixed_learning_rate')
+    elif FLAGS.learning_rate_decay_type == 'polynomial':
+        return tf.train.polynomial_decay(FLAGS.learning_rate, global_step, decay_steps,
+                                         FLAGS.end_learning_rate, power=1.0, cycle=False,
+                                         name='polynomial_decay_learning_rate')
+    else:
+        raise ValueError('learning_rate_decay_type [%s] was not recognized' % FLAGS.learning_rate_decay_type)
+
+
 def _parse_function(example_proto):
     print('parsing')
     features = {"image": tf.FixedLenFeature([56*56*3], tf.string),
@@ -17,37 +73,87 @@ def _parse_function(example_proto):
     return normed, pts
 
 
-train_log_dir = '/Users/gglee/Landmark/train_logs'
-if not tf.gfile.Exists(train_log_dir):
-    tf.gfile.MakeDirs(train_log_dir)
+def train_step_fn(sess, train_op, global_step, train_step_kwargs):
+    # if hasattr(train_step_fn, step):
+    #     train_step_fn.step += 1
+    # else:
+    train_step_fn.step = global_step.eval(sess)
+
+    total_loss, should_stop = slim.learning.train_step(sess, train_op, global_step, train_step_kwargs)
+
+    if train_step_fn.step % 100 == 0:    # validation for every 1000 steps
+        # validation_loss, validation_delta = sess.run([val_loss, summary_validation_delta])
+        # print('>> global step {}: train={}, validation={}, delta{}'.format(train_step_fn.step, total_loss, validation_loss, validation_loss-total_loss))
+        print('>> global step {}: train_loss={}'.format(train_step_fn.step, total_loss))
+
+    return total_loss, should_stop
+
+# train_log_dir = '/home/gglee/Data/Landmark/train_logs/conv5+decay'
+# if not tf.gfile.Exists(train_log_dir):
+#     tf.gfile.MakeDirs(train_log_dir)
 
 with tf.Graph().as_default():
-    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.val.tfrecord'
+    TRAIN_TFR_PATH = '/home/gglee/Data/160v5.train.tfrecord'
+    VAL_TFR_PATH = '/home/gglee/Data/160v5.val.tfrecord'
 
     # slim.dataset.Dataset(TRAIN_TFR_PATH, )
     dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
-    dataset = dataset.map(_parse_function)
-    dataset = dataset.repeat().batch(64)
+    dataset = dataset.repeat()
+    dataset = dataset.shuffle(1000)
+    dataset = dataset.map(_parse_function, num_parallel_calls=8)
+    dataset = dataset.batch(FLAGS.batch_size)
+    dataset.prefetch(buffer_size=64)
     iterator = dataset.make_initializable_iterator()
 
+    # data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
+    # data_val = data_val.repeat()
+    # data_val = data_val.map(_parse_function, num_parallel_calls=8)
+    # data_val = dataset.batch(128)
+    # data_val.prefetch(buffer_size=64)
+    # iter_val = data_val.make_initializable_iterator()
+
     image, points = iterator.get_next()
+    # val_imgs, val_pts = iter_val.get_next()
+
     predictions, _ = net.lannet(image, is_training=True)
+    # with tf.variable_scope('model') as scope:
+    #     predictions, _ = net.lannet(image, is_training=True)
+    #     scope.reuse_variables()
+    #     val_pred, _ = net.lannet(image, is_training=False)
 
-    slim.losses.absolute_difference(points, predictions)
-
+    loss = slim.losses.absolute_difference(points, predictions)
     total_loss = slim.losses.get_total_loss()
-    tf.summary.scalar('losses/total_loss', total_loss)
 
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate=.001)
+    # val_loss = tf.losses.mean_squared_error(val_pts, val_pred, loss_collection='validation')
+
+    starter_learning_rate = 0.001
+    global_step = slim.create_global_step()
+
+    learning_rate = _config_learning_rate(5000, global_step)
+    optimizer = _config_optimizer(learning_rate)
+
+    if FLAGS.moving_average_decay:
+        moving_average_variables = slim.get_model_variables()
+        variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
 
     train_tensor = slim.learning.create_train_op(total_loss, optimizer)
+    summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
+    summaries.add(tf.summary.scalar('learning_rate', learning_rate))
+    summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
     def init_fn(sess):
         sess.run(iterator.initializer)
 
-    slim.learning.train(train_tensor, train_log_dir,
+    slim.learning.train(train_tensor,
+                        logdir=FLAGS.train_dir,
                         local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
                                                iterator.initializer),
-                        number_of_steps=1000,
+                        number_of_steps=FLAGS.max_number_of_steps,
                         save_summaries_secs=300,
-                        save_interval_secs=600)
+                        save_interval_secs=300,
+                        summary_op=summary_op,
+                        # train_step_fn=train_step_fn,
+                        )
+
+# todo: add losses to the config
+# todo: how to validate or get validation error

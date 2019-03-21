@@ -36,7 +36,7 @@ def lannet(inputs, is_training=False, deopout_keep_prob=0.5, scope=None):
         net = end_points['pool3'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool3')   # 6x6
         net = end_points['conv4'] = slim.conv2d(net, 256, [3, 3], scope='conv4') # 64 -> 256
         net = end_points['pool4'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool4')   # 3x3
-        net = end_points['conv6'] = slim.conv2d(net, 512, [2, 2], padding='VALID', scope='conv5')   # 128 -> 512
+        net = end_points['conv6'] = slim.conv2d(net, 512, [3, 3], scope='conv5')   # 128 -> 512
         net = slim.flatten(net)
         net = slim.fully_connected(net, 1024, scope='fc6')  # none -> fc6
         net = slim.fully_connected(net, 68*2, activation_fn=None, scope='fc7')
