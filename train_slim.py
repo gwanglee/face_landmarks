@@ -74,17 +74,12 @@ def _parse_function(example_proto):
 
 
 def train_step_fn(sess, train_op, global_step, train_step_kwargs):
-    # if hasattr(train_step_fn, step):
-    #     train_step_fn.step += 1
-    # else:
     train_step_fn.step = global_step.eval(sess)
-
     total_loss, should_stop = slim.learning.train_step(sess, train_op, global_step, train_step_kwargs)
 
-    if train_step_fn.step % 100 == 0:    # validation for every 1000 steps
-        # validation_loss, validation_delta = sess.run([val_loss, summary_validation_delta])
-        # print('>> global step {}: train={}, validation={}, delta{}'.format(train_step_fn.step, total_loss, validation_loss, validation_loss-total_loss))
-        print('>> global step {}: train_loss={}'.format(train_step_fn.step, total_loss))
+    if train_step_fn.step % 1000 == 0:    # validation for every 1000 steps
+        validation_loss = sess.run([val_loss])
+        print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
 
     return total_loss, should_stop
 
@@ -93,43 +88,47 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
 #     tf.gfile.MakeDirs(train_log_dir)
 
 with tf.Graph().as_default():
-    TRAIN_TFR_PATH = '/home/gglee/Data/160v5.train.tfrecord'
-    VAL_TFR_PATH = '/home/gglee/Data/160v5.val.tfrecord'
+    TRAIN_TFR_PATH = '/home/gglee/Data/160v5.0322.train.tfrecord'
+    VAL_TFR_PATH = '/home/gglee/Data/160v5.0322.val.tfrecord'
 
-    # slim.dataset.Dataset(TRAIN_TFR_PATH, )
+    count_train = 0
+    for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
+        count_train += 1
+
+    count_val = 0
+    for record in tf.python_io.tf_record_iterator(VAL_TFR_PATH):
+        count_val += 1
+
     dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
     dataset = dataset.repeat()
     dataset = dataset.shuffle(1000)
     dataset = dataset.map(_parse_function, num_parallel_calls=8)
     dataset = dataset.batch(FLAGS.batch_size)
-    dataset.prefetch(buffer_size=64)
+    dataset.prefetch(buffer_size=FLAGS.batch_size)
     iterator = dataset.make_initializable_iterator()
 
-    # data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
-    # data_val = data_val.repeat()
-    # data_val = data_val.map(_parse_function, num_parallel_calls=8)
-    # data_val = dataset.batch(128)
-    # data_val.prefetch(buffer_size=64)
-    # iter_val = data_val.make_initializable_iterator()
+    data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
+    data_val = data_val.repeat()
+    data_val = data_val.map(_parse_function, num_parallel_calls=8)
+    data_val = dataset.batch(count_val)
+    data_val.prefetch(buffer_size=count_val)
+    iter_val = data_val.make_initializable_iterator()
 
     image, points = iterator.get_next()
-    # val_imgs, val_pts = iter_val.get_next()
+    val_imgs, val_pts = iter_val.get_next()
 
-    predictions, _ = net.lannet(image, is_training=True)
-    # with tf.variable_scope('model') as scope:
-    #     predictions, _ = net.lannet(image, is_training=True)
-    #     scope.reuse_variables()
-    #     val_pred, _ = net.lannet(image, is_training=False)
+    # predictions, _ = net.lannet(image, is_training=True)
+    with tf.variable_scope('model') as scope:
+        predictions, _ = net.lannet(image, is_training=True)
+        val_pred, _ = net.lannet(image, is_training=False)
 
     loss = slim.losses.absolute_difference(points, predictions)
     total_loss = slim.losses.get_total_loss()
+    val_loss = tf.losses.absolute_difference(tf.squeeze(points), tf.squeeze(val_pred), loss_collection='validation')
 
-    # val_loss = tf.losses.mean_squared_error(val_pts, val_pred, loss_collection='validation')
-
-    starter_learning_rate = 0.001
     global_step = slim.create_global_step()
 
-    learning_rate = _config_learning_rate(5000, global_step)
+    learning_rate = _config_learning_rate(count_train, global_step)
     optimizer = _config_optimizer(learning_rate)
 
     if FLAGS.moving_average_decay:
@@ -139,7 +138,10 @@ with tf.Graph().as_default():
     train_tensor = slim.learning.create_train_op(total_loss, optimizer)
     summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
+    summaries.add(tf.summary.scalar('losses/validation', val_loss))
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
+    # tf.summary.scalar('loss/total_loss', total_loss)
+    # tf.summary.scalar('learning_rate', learning_rate)
 
     def init_fn(sess):
         sess.run(iterator.initializer)
@@ -147,13 +149,10 @@ with tf.Graph().as_default():
     slim.learning.train(train_tensor,
                         logdir=FLAGS.train_dir,
                         local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
-                                               iterator.initializer),
+                                               iterator.initializer, iter_val.initializer),
                         number_of_steps=FLAGS.max_number_of_steps,
-                        save_summaries_secs=300,
+                        save_summaries_secs=150,
                         save_interval_secs=300,
                         summary_op=summary_op,
-                        # train_step_fn=train_step_fn,
+                        train_step_fn=train_step_fn,
                         )
-
-# todo: add losses to the config
-# todo: how to validate or get validation error

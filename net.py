@@ -19,14 +19,14 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-# import nets.inception_v3 as inception_v3
 
 slim = tf.contrib.slim
 
 def lannet(inputs, is_training=False, deopout_keep_prob=0.5, scope=None):
   end_points = {}
 
-  with tf.variable_scope(scope, 'lannet', [inputs]):
+  with tf.variable_scope('lannet', [inputs], reuse=tf.AUTO_REUSE):
+  # with tf.variable_scope(scope, 'lannet', [inputs], reuse=tf.AUTO_REUSE):
     with slim.arg_scope([slim.conv2d, slim.max_pool2d], padding='SAME'):
         net = end_points['conv1'] = slim.conv2d(inputs, 32, [3, 3], scope='conv1')  # 8 -> 32
         net = end_points['pool1'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool1')   # 24x24
