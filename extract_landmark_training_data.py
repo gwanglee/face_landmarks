@@ -3,15 +3,15 @@ import os
 import cv2
 from copy import deepcopy
 
-# todo:
-# 1) support menpo dataset
-# 2) work with face detection info
-
-DEBUG = False
-EXTEND = 0.1
+DEBUG = True
 PATCH_SIZE = 56
 
-def getFiles(folder_path):
+MIN_CONF = 0.3
+MIN_OVERLAP = 0.3
+EXTEND = False
+EXTEND_RATIO = 0.1
+
+def get_files(folder_path):
     '''
     Return list of filename pairs of [image, annotation]
     :param folder_path:
@@ -30,7 +30,7 @@ def getFiles(folder_path):
     return files
 
 
-def loadLandmarkData(filepath):
+def load_landmark_data(filepath):
     '''
     Read landmark points (.pts)
     :param filepath: path to the pts text file
@@ -61,7 +61,7 @@ def loadLandmarkData(filepath):
         return pts
 
 
-def getBoundingBox(pts):
+def get_bounding_box(pts):
     '''
     Get bounding box for given facial landmarks
     :param pts:
@@ -72,7 +72,7 @@ def getBoundingBox(pts):
     return {'x': min(x), 'y': min(y), 'w': max(x)-min(x), 'h': max(y)-min(y)}
 
 
-def normalizePointsWithRect(pts, faceRect):
+def normalize_points_with_rect(pts, faceRect):
     '''
     normalize point coordiates w.r.t. the face rectanble
     :param pts: landmark points
@@ -86,16 +86,23 @@ def normalizePointsWithRect(pts, faceRect):
     return normed
 
 
-def normalizePoints(pts):
+def normalize_points(pts):
     '''
     normalize point coordinates between 0 ~ 1
     :param pts:
     :return:
     '''
-    return normalizePointsWithRect(pts, getBoundingBox(pts))
+    return normalize_points_with_rect(pts, get_bounding_box(pts))
 
 
-def loadDetection(image_path, det_name, th=0.1):
+def load_detection(image_path, det_name, th=0.1):
+    '''
+    load detection data having confidence larger than a given threshold
+    :param image_path:
+    :param det_name:
+    :param th:
+    :return:
+    '''
     dir_name = os.path.dirname(image_path)
     basename = os.path.basename(image_path).split('.')[0]
     det_dir = os.path.join(dir_name, det_name)
@@ -113,11 +120,18 @@ def loadDetection(image_path, det_name, th=0.1):
             for i in range(2, num_dets):
                 x, y, w, h, c = lines[i].split()
                 if float(c) > th:
-                    dets.append({'x':float(x), 'y':float(y), 'w':float(w), 'h':float(h), 'conf':float(c)})
+                    dets.append({'x': float(x), 'y': float(y), 'w': float(w), 'h': float(h), 'conf': float(c)})
 
         return dets
 
-def getOverlap(box1, box2):
+
+def get_overlap(box1, box2):
+    '''
+    get iou
+    :param box1:
+    :param box2:
+    :return:
+    '''
     l0, t0, r0, b0 = box1['x'], box1['y'], box1['x']+box1['w'], box1['y']+box1['h']
     l1, t1, r1, b1 = box2['x'], box2['y'], box2['x']+box2['w'], box2['y']+box2['h']
 
@@ -128,21 +142,22 @@ def getOverlap(box1, box2):
 
     li = max(l0, l1)
     ri = max(r0, r1)
-    ti = max(t0, t1)
-    bi = max(b0, b1)
+    ti = min(t0, t1)
+    bi = min(b0, b1)
 
-    ai = (ri-li)*(bi-ti)
-    a0 = (r0-l0)*(b0-t0)
-    a1 = (r1-l1)*(b1-t1)
+    ai = (ri-li)*(bi-ti)    # area of the intersection
+    a0 = (r0-l0)*(b0-t0)    # area of box_0
+    a1 = (r1-l1)*(b1-t1)    # area of box_1
 
     return ai / (a0+a1-ai)
 
 
-def findBestMatchingBox(target, detections):
+def find_best_matching_box(target, detections, MIN_CONF=0.2, MIN_OVERLAP=0.2):
     '''
+    find the best matching detection box with a given box (= target)
     :param target: [l, t, r, b]
-    :param detections: [{'x', 'y', 'w', 'h']
-    :return:
+    :param detections: [{'x', 'y', 'w', 'h', 'conf'}]
+    :return: {'x', 'y', 'w', 'h', 'conf'}
     '''
 
     if len(detections) == 0:
@@ -151,10 +166,19 @@ def findBestMatchingBox(target, detections):
     max_overlap = 0.0
     max_index = -1
 
+    # boxes = filter(lambda b: get_overlap(target, b) > MIN_OVERLAP and b['conf'] > MIN_CONF, detections)
+    #
+    # if not boxes:
+    #     return None
+    #
+    # bottom = sorted(boxes, key=itemgetter(''), reverse=True)[0]['b']
+    #
+    # sorted()
+
     for i, b in enumerate(detections):
-        if b['conf'] > 0.3:
-            cur_overlap = getOverlap(target, b)
-            if cur_overlap > max_overlap and cur_overlap > 0.1:
+        if b['conf'] > MIN_CONF:
+            cur_overlap = get_overlap(target, b)
+            if cur_overlap > max_overlap and cur_overlap > MIN_OVERLAP:
                 max_index = i
                 max_overlap = cur_overlap
 
@@ -164,10 +188,12 @@ def findBestMatchingBox(target, detections):
         return None
 
 
-def square_and_expand(box, r=0.0):
+def square_and_expand(box, r=0.0, frame=None):
     '''
     make box to square and expand by given ratio
-    :param box:
+    :param box: target to extend
+    :param r: extend ratio = 1+r
+    :param frame: if not None, clip extended box to the frame (W, H)
     :return:
     '''
 
@@ -180,18 +206,32 @@ def square_and_expand(box, r=0.0):
     tx = cx - tw/2.0
     ty = cy - th/2.0
 
-    # offset['x'] = box['x'] - int(tx + 0.5)
-    # offset['y'] = box['y'] - int(ty + 0.5)
-
     box['x'] = int(tx + 0.5)
     box['y'] = int(ty + 0.5)
     box['w'] = int(tw + 0.5)
     box['h'] = int(th + 0.5)
+    r = box['x'] + box['w']
+    b = box['y'] + box['h']
 
-    return box#, offset
+    if frame:
+        box['x'] = 0 if box['x'] < 0 else box['x']
+        box['y'] = 0 if box['y'] < 0 else box['y']
+        r = frame[0]-1 if r >= frame[0] else r
+        b = frame[1]-1 if b >= frame[1] else b
+        box['w'] = r - box['x']
+        box['h'] = b - box['y']
+
+    return box
 
 
 def is_inside(in_box, out_box):
+    '''
+    check if a box is inside of another
+    :param in_box:
+    :param out_box:
+    :return:
+    '''
+
     l0, t0, r0, b0 = in_box['x'], in_box['y'], in_box['x']+in_box['w'], in_box['y']+in_box['h']
     l1, t1, r1, b1 = out_box['x'], out_box['y'], out_box['x']+out_box['w'], out_box['y']+out_box['h']
 
@@ -218,14 +258,20 @@ if __name__ == '__main__':
 
     import numpy as np
 
+    if DEBUG:
+        path_less_point = 'less_point'
+        path_border = 'border'
+        path_no_match = 'no_match'
+        path_crop = 'crop'
+
     cnt_less_point = 0
     cnt_on_the_border = 0
     cnt_generated = 0
     cnt_no_overlap = 0
-    cnt_total = 0;
+    cnt_total = 0
 
     for P in PATH:
-        samples = getFiles(P)
+        samples = get_files(P)
         cnt_total += len(samples)
 
         for i, s in enumerate(samples):
@@ -235,15 +281,20 @@ if __name__ == '__main__':
                 image_debug = deepcopy(image)
 
             H, W, _ = image.shape
-            points = loadLandmarkData(s[1])
+            points = load_landmark_data(s[1])
             frame = {'x': 0, 'y': 0, 'w': W, 'h': H}
 
             if not points or len(points) != 68:
                 cnt_less_point += 1
+                if DEBUG:
+                    save_path = os.path.join(os.path.dirname(s[0]), path_less_point)
+                    if not os.path.exists(save_path):
+                        os.mkdir(save_path)
+                    cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
                 continue
 
-            pbbox = getBoundingBox(points)          # point bounding box
-            cbox = pbbox
+            pbbox = get_bounding_box(points)            # point bounding box
+            cbox = pbbox                                # box to crop (it will be updated later)
 
             if DEBUG:
                 cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])), (int(pbbox['x']+pbbox['w']), int(pbbox['y']+pbbox['h'])), (0, 255, 255))
@@ -251,46 +302,66 @@ if __name__ == '__main__':
                     cv2.circle(image_debug, (int(p[0]+0.5), int(p[1]+0.5)), 2, (0, 255, 0))
 
             if DET_NAME:
-                dets = loadDetection(s[0], DET_NAME)
-                best = findBestMatchingBox(pbbox, dets)     # best matching detection
+                dets = load_detection(s[0], DET_NAME, th=MIN_CONF)
+                best = find_best_matching_box(pbbox, dets, MIN_CONF=MIN_CONF, MIN_OVERLAP=MIN_OVERLAP)     # best matching detection
 
                 if not best:
                     cnt_no_overlap += 1
 
                     if DEBUG:
                         for d in dets:
-                            if d['conf'] > 0.1:
-                                cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])),
-                                              (int(d['conf']*255, 0, int(d['conf']*255))))
-                        cv2.imshow('no_best', image_debug)
-                        cv2.waitKey(-1)
+                            if d['conf'] > MIN_CONF:
+                                cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])), (int(d['conf']*255), 0, int(d['conf']*255)))
+                        cv2.imshow('no_match', image_debug)
+                        cv2.waitKey(1)
+                        if DEBUG:
+                            save_path = os.path.join(os.path.dirname(s[0]), path_no_match)
+                            if not os.path.exists(save_path):
+                                os.mkdir(save_path)
+                            cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
                     continue
 
-                best = square_and_expand(best, EXTEND)
-
-                if DEBUG:
+                if DEBUG:   # draw best match in RED
                     cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
                                   (int(best['x'] + best['w']), int(best['y'] + best['h'])), (0, 0, 255))
 
-                if not is_inside(pbbox, best):
-                    cnt_on_the_border += 1
+                if EXTEND:
+                    best = square_and_expand(best, EXTEND_RATIO, (W, H))
 
-                    if DEBUG:
-                        cv2.imshow('point_out_of_box', image_debug)
-                        cv2.waitKey(-1)
-                    continue
+                if DEBUG:   # draw best match extended in yellos
+                    cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
+                                  (int(best['x'] + best['w']), int(best['y'] + best['h'])), (255, 255, 0))
 
-                if not is_inside(best, frame):      # or just clip it?
-                    cnt_on_the_border += 1
+                # if not is_inside(pbbox, best):
+                #     cnt_on_the_border += 1
+                #
+                #     if DEBUG:
+                #         cv2.imshow('point_out_of_box', image_debug)
+                #         cv2.waitKey(5)
+                #         if DEBUG:
+                #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
+                #             if not os.path.exists(save_path):
+                #                 os.mkdir(save_path)
+                #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+                #     continue
 
-                    if DEBUG:
-                        cv2.imshow('point_out_of_frame', image_debug)
-                        cv2.waitKey(-1)
-                    continue
+                # if not is_inside(best, frame):      # or just clip it?
+                #     cnt_on_the_border += 1
+                #
+                #     if DEBUG:
+                #         cv2.imshow('detect_out_of_frame', image_debug)
+                #         cv2.waitKey(5)
+                #         if DEBUG:
+                #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
+                #             if not os.path.exists(save_path):
+                #                 os.mkdir(save_path)
+                #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+                #     continue
 
                 cbox = best
             else:
-                cbox = square_and_expand(pbbox, EXTEND)  # crop box
+                if EXTEND:
+                    cbox = square_and_expand(pbbox, EXTEND_RATIO, (W, H))  # crop box
 
             # if DEBUG:
             #     cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
@@ -309,7 +380,7 @@ if __name__ == '__main__':
             arr = np.array(cropped).astype(dtype=np.uint8)
             arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
 
-            normed = normalizePointsWithRect(points, cbox)
+            normed = normalize_points_with_rect(points, cbox)
             pts = np.array(normed)
             pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
 
@@ -323,7 +394,7 @@ if __name__ == '__main__':
 
             if DEBUG:
                 cv2.imshow('cropped', cropped)
-                cv2.waitKey(500)
+                cv2.waitKey(1)
 
             if i % 10 == 0:
                 print('[%d / %d]: %s' %(i, len(samples), s[0]))
