@@ -19,7 +19,8 @@ class Classifier(object):
                 # inference model.
                 self.images_pholder = tf.placeholder(tf.float32, [8, input_size, input_size, 3])
 
-                self.landmarks, _ = net.lannet(self.images_pholder, is_training=False)
+                with tf.variable_scope('model') as scope:
+                    self.landmarks, _ = net.lannet(self.images_pholder, is_training=False)
 
                 saver = tf.train.Saver()
                 saver.restore(self.sess, model_path)

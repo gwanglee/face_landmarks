@@ -120,7 +120,7 @@ with tf.Graph().as_default():
     # predictions, _ = net.lannet(image, is_training=True)
     with tf.variable_scope('model') as scope:
         predictions, _ = net.lannet(image, is_training=True)
-        val_pred, _ = net.lannet(image, is_training=False)
+        val_pred, _ = net.lannet(val_imgs, is_training=False)
 
     loss = slim.losses.absolute_difference(points, predictions)
     total_loss = slim.losses.get_total_loss()
