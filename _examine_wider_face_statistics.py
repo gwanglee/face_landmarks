@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 
 if __name__=='__main__':
-    DB_PATH='/Users/gglee/Data/WiderRefine/random_remove_1_1'
-    GT_PATH='/Users/gglee/Data/WiderRefine/random_remove_1_1/gt_train.txt'
+    DB_PATH='/Users/gglee/Data/WiderRefine/train_fr/'
+    GT_PATH='/Users/gglee/Data/WiderRefine/train_fr/wider_refine_train_gt.txt'
     BINS = 50
 
     wdb = widerface_explorer.wider_face_db(DB_PATH, GT_PATH)

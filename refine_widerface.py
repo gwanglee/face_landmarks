@@ -139,7 +139,7 @@ def pick_valid_crop(frame_size, lb, sb):
                 print('skip invalid box')
                 continue
 
-            bbox = {'l': min(a0['l'], a1['l']), 't': min(a0['t'], a1['t']),         # this is the candidate
+            bbox = {'l': min(a0['l'], a1['l']), 't': min(a0['t'], a1['t']),
                     'r': max(a0['r'], a1['r']), 'b': max(a0['b'], a1['b'])}
             frame = {'l': frame_size[0], 't': frame_size[1], 'r': 0, 'b': 0}
 
@@ -148,6 +148,8 @@ def pick_valid_crop(frame_size, lb, sb):
                 if check_overlap(bbox, s):
                     overlap = True
                     break
+
+            cur_face_width = max(a0['r']-a0['l'], a1['r']-a1['l'])
 
             if not overlap:     # bbox does not overlap with sb -> safe to use -> expand it until it meet any s in sb
                 # expand width first
@@ -170,14 +172,14 @@ def pick_valid_crop(frame_size, lb, sb):
 
                 obh, obw = out_box['b'] - out_box['t'], out_box['r'] - out_box['l']
 
-                if obh > obw:
-                    cy = int((out_box['b'] + out_box['t']) / 2)
-                    out_box['t'] = int(cy - obw / 2) if int(cy - obw / 2) < bbox['t'] else int(
-                        (bbox['t'] + out_box['t']) / 2)
-                    out_box['b'] = int(cy + obw / 2) if int(cy + obw / 2) > bbox['b'] else int(
-                        (bbox['b'] + out_box['b']) / 2)
+                # if obh > obw:
+                #     cy = int((out_box['b'] + out_box['t']) / 2)
+                #     out_box['t'] = int(cy - obw / 2) if int(cy - obw / 2) < bbox['t'] else int(
+                #         (bbox['t'] + out_box['t']) / 2)
+                #     out_box['b'] = int(cy + obw / 2) if int(cy + obw / 2) > bbox['b'] else int(
+                #         (bbox['b'] + out_box['b']) / 2)
 
-                MAX_TRY = 40
+                MAX_TRY = 256
                 ARTH = 1.5
 
                 # out_box와 bbox 사이의 box를 random search
@@ -199,13 +201,14 @@ def pick_valid_crop(frame_size, lb, sb):
                         rw = rr - rl
                         rh = rb - rt
                         curar = rw / rh
+                        curfr = cur_face_width / (rr-rl)
 
                         if 1/ARTH < curar < ARTH:       # AR은 가로, 세로 모두 ARTH 이하이어야 함
-                            cur_box = {'l': rl, 't': rt, 'r': rr, 'b': rb}
+                            cur_box = {'l': rl, 't': rt, 'r': rr, 'b': rb, 'fr':curfr}
                             if min(rr-rl, rb-rt) > MIN_FRAME_SIZE and not on_the_border(cur_box, lb):
                                 res.append(cur_box)
 
-    MAX_RETURN = 5
+    MAX_RETURN = 6
 
     if len(res) > MAX_RETURN:
         pick = []
@@ -214,7 +217,8 @@ def pick_valid_crop(frame_size, lb, sb):
             pick.append(res[sel])
             # res = filter(lambda r: not (1/1.2 < (r['r']-r['b']) / (res[sel]['r']-res[sel]['l']) < 1.2), res)
             # res = filter(lambda r: get_iou(r, res[sel]) < 0.3, res)
-            res = filter(lambda r: not (1 / 1.2 < (r['r'] - r['l']) / (res[sel]['r'] - res[sel]['l']) < 1.2), res)
+            # res = filter(lambda r: not (1 / 1.2 < (r['r'] - r['l']) / (res[sel]['r'] - res[sel]['l']) < 1.2), res)
+            res = filter(lambda  r: not (1/2.0 < r['fr']/res[sel]['fr'] < 2.0), res)
             # res.remove(res[sel])
 
         return pick
