@@ -16,8 +16,21 @@ tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after w
 tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
 tf.app.flags.DEFINE_integer('max_number_of_steps', None, 'The maximum number of training steps')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
+tf.app.flags.DEFINE_boolean('use_batch_norm', False, 'To use or not BatchNorm on conv layers')
+tf.app.flags.DEFING_string('regularizer', None, 'l1, l2 or l1_12')
 
 FLAGS = tf.app.flags.FLAGS
+
+
+def _config_weights_regularizer(regularizer, scale, scale2=None):
+    if regularizer == 'l1':
+        return slim.l1_regularizer(scale)
+    elif regularizer == 'l2:'
+        return slim.l2_regularizer(scale)
+    elif regularizer == 'l1_l2':
+        return slim.l1_l2_regularizer(scale, scale2)
+    else:
+        raise ValueError('Regularizer [%s] was not recognized' % FLAGS.regularizer)
 
 
 def _config_optimizer(learning_rate):
@@ -119,10 +132,20 @@ with tf.Graph().as_default():
     image, points = iterator.get_next()
     val_imgs, val_pts = iter_val.get_next()
 
+    norm_fn = None
+    norm_params = {}
+    if FLAGS.use_batch_norm:
+        norm_fn = slim.batch_norm
+        norm_params = {'is_training': True}
+
+    regularizer = None
+    if FLAGS.regularizer:
+        regularizer = _config_weights_regularizer(FLAGS.regularizer, 0.001)
+
     # predictions, _ = net.lannet(image, is_training=True)
     with tf.variable_scope('model') as scope:
         intensor = tf.identity(image, 'input')
-        predictions, _ = net.lannet(intensor, is_training=True)
+        predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params, regularizer=regularizer)
         # val_pred, _ = net.lannet(val_imgs, is_training=False)
 
     loss = slim.losses.absolute_difference(points, predictions)
