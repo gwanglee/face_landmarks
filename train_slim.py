@@ -4,6 +4,8 @@ import net
 slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', 'Directory for training and logging')
+tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
+tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_float('weight_decay', 0.0005, 'The weight decay on the model weights')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
@@ -25,7 +27,7 @@ FLAGS = tf.app.flags.FLAGS
 def _config_weights_regularizer(regularizer, scale, scale2=None):
     if regularizer == 'l1':
         return slim.l1_regularizer(scale)
-    elif regularizer == 'l2:'
+    elif regularizer == 'l2':
         return slim.l2_regularizer(scale)
     elif regularizer == 'l1_l2':
         return slim.l1_l2_regularizer(scale, scale2)
@@ -102,8 +104,8 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
 #     tf.gfile.MakeDirs(train_log_dir)
 
 with tf.Graph().as_default():
-    TRAIN_TFR_PATH = '/home/gglee/Data/160v5.0322.train.tfrecord'
-    VAL_TFR_PATH = '/home/gglee/Data/160v5.0322.train.tfrecord'
+    TRAIN_TFR_PATH = FLAGS.train_tfr
+    VAL_TFR_PATH = FLAGS.val_tfr
 
     count_train = 0
     for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
