@@ -19,7 +19,7 @@ tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for mo
 tf.app.flags.DEFINE_integer('max_number_of_steps', None, 'The maximum number of training steps')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 tf.app.flags.DEFINE_boolean('use_batch_norm', False, 'To use or not BatchNorm on conv layers')
-tf.app.flags.DEFING_string('regularizer', None, 'l1, l2 or l1_12')
+tf.app.flags.DEFINE_string('regularizer', None, 'l1, l2 or l1_12')
 
 FLAGS = tf.app.flags.FLAGS
 
