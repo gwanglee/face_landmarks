@@ -9,6 +9,7 @@ tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adag
 tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
 tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
 tf.app.flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate')
+tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
 tf.app.flags.DEFINE_float('end_learning_rate', 0.0001, 'The minimal lr used by a polynomial lr decay')
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.995, 'Learning rate decay factor')
 tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after which lr decays')
@@ -29,7 +30,7 @@ def _config_optimizer(learning_rate):
     elif FLAGS.optimizer == 'ftrl':
         optimizer = tf.train.FtrlOptimizer(learning_rate)
     elif FLAGS.optimizer == 'momentum':
-        optimizer = tf.train.MomentumOptimizer(learning_rate)
+        optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=FLAGS.momentum)
     elif FLAGS.optimizer == 'rmsprop':
         optimizer = tf.train.RMSPropOptimizer(learning_rate)
     elif FLAGS.optimizer == 'sgd':
@@ -49,7 +50,7 @@ def _config_learning_rate(num_samples_per_epoch, global_step):
                                           FLAGS.learning_rate_decay_factor,
                                           staircase=True,
                                           name='exponential_decay_learning_rate')
-    elif FLAGS.learning_rate_decay_type == 'fixed':
+    elif FLAGS.learning_rate_decay_type == 'fixed' or FLAGS.optimizer == 'adam':
         return tf.constant(FLAGS.learning_rate, name='fixed_learning_rate')
     elif FLAGS.learning_rate_decay_type == 'polynomial':
         return tf.train.polynomial_decay(FLAGS.learning_rate, global_step, decay_steps,
@@ -60,7 +61,6 @@ def _config_learning_rate(num_samples_per_epoch, global_step):
 
 
 def _parse_function(example_proto):
-    print('parsing')
     features = {"image": tf.FixedLenFeature([56*56*3], tf.string),
                 "points": tf.FixedLenFeature([68*2], tf.float32)}
     parsed_features = tf.parse_single_example(example_proto, features)
@@ -69,7 +69,7 @@ def _parse_function(example_proto):
     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)
 
     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
-    print(normed, pts)
+    print('parsing >> ', normed, pts)
     return normed, pts
 
 
@@ -78,8 +78,9 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
     total_loss, should_stop = slim.learning.train_step(sess, train_op, global_step, train_step_kwargs)
 
     if train_step_fn.step % 1000 == 0:    # validation for every 1000 steps
-        validation_loss = sess.run([val_loss])
-        print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
+        # validation_loss = sess.run([val_loss])
+        # print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
+        print('>> global step {}: train={}'.format(train_step_fn.step, total_loss))
 
     return total_loss, should_stop
 
@@ -89,7 +90,7 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
 
 with tf.Graph().as_default():
     TRAIN_TFR_PATH = '/home/gglee/Data/160v5.0322.train.tfrecord'
-    VAL_TFR_PATH = '/home/gglee/Data/160v5.0322.val.tfrecord'
+    VAL_TFR_PATH = '/home/gglee/Data/160v5.0322.train.tfrecord'
 
     count_train = 0
     for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
@@ -109,9 +110,10 @@ with tf.Graph().as_default():
 
     data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
     data_val = data_val.repeat()
+    data_val = data_val.shuffle(1000)
     data_val = data_val.map(_parse_function, num_parallel_calls=8)
-    data_val = dataset.batch(count_val)
-    data_val.prefetch(buffer_size=count_val)
+    data_val = dataset.batch(FLAGS.batch_size)
+    data_val.prefetch(buffer_size=FLAGS.batch_size)
     iter_val = data_val.make_initializable_iterator()
 
     image, points = iterator.get_next()
@@ -119,12 +121,13 @@ with tf.Graph().as_default():
 
     # predictions, _ = net.lannet(image, is_training=True)
     with tf.variable_scope('model') as scope:
-        predictions, _ = net.lannet(image, is_training=True)
-        val_pred, _ = net.lannet(image, is_training=False)
+        intensor = tf.identity(image, 'input')
+        predictions, _ = net.lannet(intensor, is_training=True)
+        # val_pred, _ = net.lannet(val_imgs, is_training=False)
 
     loss = slim.losses.absolute_difference(points, predictions)
     total_loss = slim.losses.get_total_loss()
-    val_loss = tf.losses.absolute_difference(tf.squeeze(points), tf.squeeze(val_pred), loss_collection='validation')
+    # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
 
     global_step = slim.create_global_step()
 
@@ -138,10 +141,8 @@ with tf.Graph().as_default():
     train_tensor = slim.learning.create_train_op(total_loss, optimizer)
     summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-    summaries.add(tf.summary.scalar('losses/validation', val_loss))
+    # summaries.add(tf.summary.scalar('losses/validation', val_loss))
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
-    # tf.summary.scalar('loss/total_loss', total_loss)
-    # tf.summary.scalar('learning_rate', learning_rate)
 
     def init_fn(sess):
         sess.run(iterator.initializer)
