@@ -103,82 +103,83 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
 # if not tf.gfile.Exists(train_log_dir):
 #     tf.gfile.MakeDirs(train_log_dir)
 
-with tf.Graph().as_default():
-    TRAIN_TFR_PATH = FLAGS.train_tfr
-    VAL_TFR_PATH = FLAGS.val_tfr
+if __name__=='__main__':
+    with tf.Graph().as_default():
+        TRAIN_TFR_PATH = FLAGS.train_tfr
+        VAL_TFR_PATH = FLAGS.val_tfr
 
-    count_train = 0
-    for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
-        count_train += 1
+        count_train = 0
+        for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
+            count_train += 1
 
-    count_val = 0
-    for record in tf.python_io.tf_record_iterator(VAL_TFR_PATH):
-        count_val += 1
+        count_val = 0
+        for record in tf.python_io.tf_record_iterator(VAL_TFR_PATH):
+            count_val += 1
 
-    dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
-    dataset = dataset.repeat()
-    dataset = dataset.shuffle(1000)
-    dataset = dataset.map(_parse_function, num_parallel_calls=8)
-    dataset = dataset.batch(FLAGS.batch_size)
-    dataset.prefetch(buffer_size=FLAGS.batch_size)
-    iterator = dataset.make_initializable_iterator()
+        dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
+        dataset = dataset.repeat()
+        dataset = dataset.shuffle(1000)
+        dataset = dataset.map(_parse_function, num_parallel_calls=8)
+        dataset = dataset.batch(FLAGS.batch_size)
+        dataset.prefetch(buffer_size=FLAGS.batch_size)
+        iterator = dataset.make_initializable_iterator()
 
-    data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
-    data_val = data_val.repeat()
-    data_val = data_val.shuffle(1000)
-    data_val = data_val.map(_parse_function, num_parallel_calls=8)
-    data_val = dataset.batch(FLAGS.batch_size)
-    data_val.prefetch(buffer_size=FLAGS.batch_size)
-    iter_val = data_val.make_initializable_iterator()
+        data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
+        data_val = data_val.repeat()
+        data_val = data_val.shuffle(1000)
+        data_val = data_val.map(_parse_function, num_parallel_calls=8)
+        data_val = dataset.batch(FLAGS.batch_size)
+        data_val.prefetch(buffer_size=FLAGS.batch_size)
+        iter_val = data_val.make_initializable_iterator()
 
-    image, points = iterator.get_next()
-    val_imgs, val_pts = iter_val.get_next()
+        image, points = iterator.get_next()
+        val_imgs, val_pts = iter_val.get_next()
 
-    norm_fn = None
-    norm_params = {}
-    if FLAGS.use_batch_norm:
-        norm_fn = slim.batch_norm
-        norm_params = {'is_training': True}
+        norm_fn = None
+        norm_params = {}
+        if FLAGS.use_batch_norm:
+            norm_fn = slim.batch_norm
+            norm_params = {'is_training': True}
 
-    regularizer = None
-    if FLAGS.regularizer:
-        regularizer = _config_weights_regularizer(FLAGS.regularizer, 0.001)
+        regularizer = None
+        if FLAGS.regularizer:
+            regularizer = _config_weights_regularizer(FLAGS.regularizer, 0.001)
 
-    # predictions, _ = net.lannet(image, is_training=True)
-    with tf.variable_scope('model') as scope:
-        intensor = tf.identity(image, 'input')
-        predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params, regularizer=regularizer)
-        # val_pred, _ = net.lannet(val_imgs, is_training=False)
+        # predictions, _ = net.lannet(image, is_training=True)
+        with tf.variable_scope('model') as scope:
+            intensor = tf.identity(image, 'input')
+            predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params, regularizer=regularizer)
+            # val_pred, _ = net.lannet(val_imgs, is_training=False)
 
-    loss = slim.losses.absolute_difference(points, predictions)
-    total_loss = slim.losses.get_total_loss()
-    # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
+        loss = slim.losses.absolute_difference(points, predictions)
+        total_loss = slim.losses.get_total_loss()
+        # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
 
-    global_step = slim.create_global_step()
+        global_step = slim.create_global_step()
 
-    learning_rate = _config_learning_rate(count_train, global_step)
-    optimizer = _config_optimizer(learning_rate)
+        learning_rate = _config_learning_rate(count_train, global_step)
+        optimizer = _config_optimizer(learning_rate)
 
-    if FLAGS.moving_average_decay:
-        moving_average_variables = slim.get_model_variables()
-        variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
+        if FLAGS.moving_average_decay:
+            moving_average_variables = slim.get_model_variables()
+            variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
 
-    train_tensor = slim.learning.create_train_op(total_loss, optimizer)
-    summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
-    summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-    # summaries.add(tf.summary.scalar('losses/validation', val_loss))
-    summary_op = tf.summary.merge(list(summaries), name='summary_op')
+        train_tensor = slim.learning.create_train_op(total_loss, optimizer)
+        summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
+        summaries.add(tf.summary.scalar('learning_rate', learning_rate))
+        # summaries.add(tf.summary.scalar('losses/validation', val_loss))
+        summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
-    def init_fn(sess):
-        sess.run(iterator.initializer)
+        def init_fn(sess):
+            sess.run(iterator.initializer)
 
-    slim.learning.train(train_tensor,
-                        logdir=FLAGS.train_dir,
-                        local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
-                                               iterator.initializer, iter_val.initializer),
-                        number_of_steps=FLAGS.max_number_of_steps,
-                        save_summaries_secs=150,
-                        save_interval_secs=300,
-                        summary_op=summary_op,
-                        train_step_fn=train_step_fn,
-                        )
+        slim.learning.train(train_tensor,
+                            logdir=FLAGS.train_dir,
+                            local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
+                                                   iterator.initializer, iter_val.initializer),
+                            number_of_steps=FLAGS.max_number_of_steps,
+                            save_summaries_secs=150,
+                            save_interval_secs=300,
+                            summary_op=summary_op,
+                            train_step_fn=train_step_fn,
+                            )
