@@ -28,7 +28,7 @@ def lannet(inputs, is_training=False, deopout_keep_prob=0.5, scope=None, depth_m
 
   with tf.variable_scope('lannet', [inputs], reuse=tf.AUTO_REUSE):
     with slim.arg_scope([slim.conv2d, slim.max_pool2d], padding='SAME'):
-        with slim.arg_scope([slim.conv2d], normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
+        with slim.arg_scope([slim.conv2d, slim.fully_connected], normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
                             weights_regularizer=regularizer):
             net = end_points['conv1'] = slim.conv2d(inputs, 8*depth_mul, [3, 3], scope='conv1')
             net = end_points['pool1'] = slim.max_pool2d(net, [2, 2], stride=2, scope='pool1')

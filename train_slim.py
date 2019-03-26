@@ -12,7 +12,7 @@ tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quan
 tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
 tf.app.flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate')
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
-tf.app.flags.DEFINE_float('end_learning_rate', 0.0001, 'The minimal lr used by a polynomial lr decay')
+tf.app.flags.DEFINE_float('end_learning_rate', 0.00005, 'The minimal lr used by a polynomial lr decay')
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.995, 'Learning rate decay factor')
 tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after which lr decays')
 tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
@@ -20,6 +20,7 @@ tf.app.flags.DEFINE_integer('max_number_of_steps', None, 'The maximum number of 
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 tf.app.flags.DEFINE_boolean('use_batch_norm', False, 'To use or not BatchNorm on conv layers')
 tf.app.flags.DEFINE_string('regularizer', None, 'l1, l2 or l1_12')
+tf.app.flags.DEFINE_integer('depth_multiplier', 4, '')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -145,11 +146,12 @@ if __name__=='__main__':
         if FLAGS.regularizer:
             regularizer = _config_weights_regularizer(FLAGS.regularizer, 0.001)
 
-        # predictions, _ = net.lannet(image, is_training=True)
-        with tf.variable_scope('model') as scope:
-            intensor = tf.identity(image, 'input')
-            predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params, regularizer=regularizer)
-            # val_pred, _ = net.lannet(val_imgs, is_training=False)
+    # predictions, _ = net.lannet(image, is_training=True)
+    with tf.variable_scope('model') as scope:
+        intensor = tf.identity(image, 'input')
+        predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params, regularizer=regularizer,
+                                    depth_mul=FLAGS.depth_multiplier)
+        # val_pred, _ = net.lannet(val_imgs, is_training=False)
 
         loss = slim.losses.absolute_difference(points, predictions)
         total_loss = slim.losses.get_total_loss()
