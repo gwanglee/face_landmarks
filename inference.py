@@ -9,7 +9,7 @@ import net
 slim = tf.contrib.slim
 
 class Classifier(object):
-    def __init__(self, input_size, model_path, depth_multiplier=4):
+    def __init__(self, input_size, model_path, depth_multiplier=4, normalizer_fn=None, normalizer_params={}):
         self.input_size = input_size
 
         with slim.arg_scope(net.arg_scope(weight_decay=0.0005)):
@@ -20,7 +20,9 @@ class Classifier(object):
                 self.images_pholder = tf.placeholder(tf.float32, [8, input_size, input_size, 3])
 
                 with tf.variable_scope('model') as scope:
-                    self.landmarks, _ = net.lannet(self.images_pholder, is_training=False, depth_mul=depth_multiplier)
+                    self.landmarks, _ = net.lannet(self.images_pholder, is_training=False,
+                                                   normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
+                                                   depth_mul=depth_multiplier)
 
                 saver = tf.train.Saver()
                 saver.restore(self.sess, model_path)
