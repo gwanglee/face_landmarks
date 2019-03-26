@@ -12,7 +12,7 @@ tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quan
 tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
 tf.app.flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate')
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
-tf.app.flags.DEFINE_float('end_learning_rate', 0.0001, 'The minimal lr used by a polynomial lr decay')
+tf.app.flags.DEFINE_float('end_learning_rate', 0.00005, 'The minimal lr used by a polynomial lr decay')
 tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.995, 'Learning rate decay factor')
 tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after which lr decays')
 tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
