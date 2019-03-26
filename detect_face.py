@@ -140,7 +140,11 @@ if __name__ == '__main__':
 
     if LANDMARK_CKPT_PATH != '':
         # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
-        landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, 2)
+        DEPTH_MULTIPLIER = 2
+        NORM_FN = None
+        NORM_PARAM = {}
+        landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, depth_multiplier=DEPTH_MULTIPLIER,
+                                              normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM)
 
     # set sources
     image_to_test = []
