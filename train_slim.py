@@ -59,6 +59,7 @@ def _config_optimizer(learning_rate):
 
 def _config_learning_rate(num_samples_per_epoch, global_step):
     decay_steps = int(num_samples_per_epoch * FLAGS.num_epochs_per_decay / FLAGS.batch_size)
+
     if FLAGS.learning_rate_decay_type == 'exponential':
         return tf.train.exponential_decay(FLAGS.learning_rate,
                                           global_step,
@@ -66,7 +67,7 @@ def _config_learning_rate(num_samples_per_epoch, global_step):
                                           FLAGS.learning_rate_decay_factor,
                                           staircase=True,
                                           name='exponential_decay_learning_rate')
-    elif FLAGS.learning_rate_decay_type == 'fixed' or FLAGS.optimizer == 'adam':
+    elif FLAGS.learning_rate_decay_type == 'fixed':
         return tf.constant(FLAGS.learning_rate, name='fixed_learning_rate')
     elif FLAGS.learning_rate_decay_type == 'polynomial':
         return tf.train.polynomial_decay(FLAGS.learning_rate, global_step, decay_steps,
@@ -112,6 +113,7 @@ if __name__=='__main__':
         count_train = 0
         for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
             count_train += 1
+        print('%d samples in training data' % count_train)
 
         count_val = 0
         for record in tf.python_io.tf_record_iterator(VAL_TFR_PATH):
@@ -120,7 +122,7 @@ if __name__=='__main__':
         dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
         dataset = dataset.repeat()
         dataset = dataset.shuffle(1000)
-        dataset = dataset.map(_parse_function, num_parallel_calls=8)
+        dataset = dataset.map(_parse_function, num_parallel_calls=16)
         dataset = dataset.batch(FLAGS.batch_size)
         dataset.prefetch(buffer_size=FLAGS.batch_size)
         iterator = dataset.make_initializable_iterator()
@@ -128,7 +130,7 @@ if __name__=='__main__':
         data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
         data_val = data_val.repeat()
         data_val = data_val.shuffle(1000)
-        data_val = data_val.map(_parse_function, num_parallel_calls=8)
+        data_val = data_val.map(_parse_function, num_parallel_calls=16)
         data_val = dataset.batch(FLAGS.batch_size)
         data_val.prefetch(buffer_size=FLAGS.batch_size)
         iter_val = data_val.make_initializable_iterator()
