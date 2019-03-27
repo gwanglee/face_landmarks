@@ -63,7 +63,7 @@ def _write_current_setting(train_path):
             wf.write('use_batch_norm\n')
 
         if FLAGS.moving_average_decay:
-            wf.write('moving_average_decay: %f\n', FLAGS.moving_average_decay)
+            wf.write('moving_average_decay: %f\n' % FLAGS.moving_average_decay)
 
         wf.write('regularizer: %s\n' % FLAGS.regularizer)
         if FLAGS.regularizer:
