@@ -41,36 +41,39 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def _write_current_setting(train_path):
-    with os.open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
-        wf.write('%s' % train_path)
-        wf.write('train_tfr: %s' % FLAGS.train_tfr)
+    if not os.path.exists(train_path):
+        os.makedirs(train_path)
 
-        wf.write('optimizer: %s' % FLAGS.optimizer)
-        wf.write('learning_rate: %f' % FLAGS.learning_rate)
+    with open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
+        wf.write('%s\n' % train_path)
+        wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
+
+        wf.write('optimizer: %s\n' % FLAGS.optimizer)
+        wf.write('learning_rate: %f\n' % FLAGS.learning_rate)
         if FLAGS.optimizer == 'momentum':
-            wf.write('momentum: %f' % FLAGS.momentum)
+            wf.write('momentum: %f\n' % FLAGS.momentum)
         elif FLAGS.optimizer == 'rmsprop':
-            wf.write('rmsprop_momentum: %f, rmsprop_decay: %f' % (FLAGS.rmsprop_momentum, FLAGS.rmsprop_decay))
+            wf.write('rmsprop_momentum: %f, rmsprop_decay: %f\n' % (FLAGS.rmsprop_momentum, FLAGS.rmsprop_decay))
         elif FLAGS.optimizer == 'adam':
-            wf.write('adam_beta1: %f, adam_beta2: %f' % (FLAGS.adam_beta1, FLAGS.adam_beta2))
-        wf.write('learning_rate_decay_type: %s' % FLAGS.learning_rate_decay_type)
-        wf.write('learning_rate_decay_factor: %f' % FLAGS.learning_rate_decay_factor)
+            wf.write('adam_beta1: %f, adam_beta2: %f\n' % (FLAGS.adam_beta1, FLAGS.adam_beta2))
+        wf.write('learning_rate_decay_type: %s\n' % FLAGS.learning_rate_decay_type)
+        wf.write('learning_rate_decay_factor: %f\n' % FLAGS.learning_rate_decay_factor)
 
         if FLAGS.use_batch_norm:
-            wf.write('use_batch_norm')
+            wf.write('use_batch_norm\n')
 
         if FLAGS.moving_average_decay:
-            wf.write('moving_average_decay: %f', FLAGS.moving_average_decay)
+            wf.write('moving_average_decay: %f\n', FLAGS.moving_average_decay)
 
-        wf.write('regularizer: %s' % FLAGS.regularizer)
+        wf.write('regularizer: %s\n' % FLAGS.regularizer)
         if FLAGS.regularizer:
-            wf.write('lambda1: %f, lambda2: %f' % (FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)) \
-                if FLAGS.regularizer == 'l1_l2' else wf.write('lambda: %f' % FLAGS.regularizer_lambda)
+            wf.write('lambda1: %f, lambda2: %f\n' % (FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)) \
+                if FLAGS.regularizer == 'l1_l2' else wf.write('lambda: %f\n' % FLAGS.regularizer_lambda)
 
         if FLAGS.quantize_delay >= 0:
-            wf.write('quantize_delay: %d' % FLAGS.quantize_delay)
+            wf.write('quantize_delay: %d\n' % FLAGS.quantize_delay)
 
-        wf.write('depth_multiplier: %d' % FLAGS.depth_multiplier)
+        wf.write('depth_multiplier: %d\n' % FLAGS.depth_multiplier)
 
 
 def _config_weights_regularizer(reg, scale, scale2=None):
@@ -148,6 +151,21 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
 
     return total_loss, should_stop
 
+
+def _get_trainable_variables(t_scopes):
+    if t_scopes is None:
+        return tf.trainable_variables()
+
+    ts = [s.strip() for s in t_scopes]
+
+    var2train = []
+    for s in ts:
+        vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, s)
+        var2train.extend(vars)
+
+    return var2train
+
+
 # train_log_dir = '/home/gglee/Data/Landmark/train_logs/conv5+decay'
 # if not tf.gfile.Exists(train_log_dir):
 #     tf.gfile.MakeDirs(train_log_dir)
@@ -194,10 +212,11 @@ if __name__=='__main__':
             norm_params = {'is_training': True}
 
         regularizer = None
-        if FLAGS.regularizer == 'l1' or FLAGS.regularizer == 'l2':
-            regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda)
-        else:
-            regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
+        if FLAGS.regularizer:
+            if FLAGS.regularizer == 'l1' or FLAGS.regularizer == 'l2':
+                regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda)
+            else:
+                regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
 
         # predictions, _ = net.lannet(image, is_training=True)
         with tf.variable_scope('model') as scope:
@@ -215,15 +234,21 @@ if __name__=='__main__':
         learning_rate = _config_learning_rate(global_step)
         optimizer = _config_optimizer(learning_rate)
 
+        moving_average_variables, variable_averages = None, None
         if FLAGS.moving_average_decay:
             moving_average_variables = slim.get_model_variables()
             variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
+            tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, variable_averages.apply(moving_average_variables))
 
         if FLAGS.quantize_delay > 0:
             tf.contrib.quantize.create_training_graph(
                 quant_delay=FLAGS.quantize_delay)
 
-        train_tensor = slim.learning.create_train_op(total_loss, optimizer)
+        trainable_scopes = None
+        trainable_vars = _get_trainable_variables(trainable_scopes)
+        train_tensor = slim.learning.create_train_op(total_loss, optimizer,
+                                                     global_step=global_step,
+                                                     variables_to_train=trainable_vars)
         summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
         summaries.add(tf.summary.scalar('learning_rate', learning_rate))
         # summaries.add(tf.summary.scalar('losses/validation', val_loss))
