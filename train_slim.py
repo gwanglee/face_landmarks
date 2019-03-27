@@ -1,76 +1,123 @@
 import tensorflow as tf
 import net
+import os
+
+# https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
 
 slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', 'Directory for training and logging')
 tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
-tf.app.flags.DEFINE_float('weight_decay', 0.0005, 'The weight decay on the model weights')
-tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
-tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
-tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
-tf.app.flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate')
-tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
-tf.app.flags.DEFINE_float('end_learning_rate', 0.00005, 'The minimal lr used by a polynomial lr decay')
-tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.995, 'Learning rate decay factor')
-tf.app.flags.DEFINE_float('num_epochs_per_decay', 2.0, 'Number of epochs after which lr decays')
-tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
-tf.app.flags.DEFINE_integer('max_number_of_steps', None, 'The maximum number of training steps')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
+
+tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
+tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
+
+tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
+tf.app.flags.DEFINE_float('rmsprop_momentum', 0.9, 'Momentum.')
+tf.app.flags.DEFINE_float('rmsprop_decay', 0.9, 'Decay term for RMSProp.')
+tf.app.flags.DEFINE_float('adam_beta1', 0.9, 'The exponential decay rate for the 1st moment estimates.')
+tf.app.flags.DEFINE_float('adam_beta2', 0.999, 'The exponential decay rate for the 2nd moment estimates.')
+
+tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
+tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.94, 'Learning rate decay factor')
+tf.app.flags.DEFINE_integer('learning_rate_decay_step', 50000, 'Decay lr at every N steps')
+tf.app.flags.DEFINE_boolean('learning_rate_decay_staircase', True, 'Staircase decay or not')
+tf.app.flags.DEFINE_float('end_learning_rate', 0.00005, 'The minimal lr used by a polynomial lr decay')
+
+tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
+tf.app.flags.DEFINE_integer('max_number_of_steps', 300000, 'The maximum number of training steps')
 tf.app.flags.DEFINE_boolean('use_batch_norm', False, 'To use or not BatchNorm on conv layers')
+
 tf.app.flags.DEFINE_string('regularizer', None, 'l1, l2 or l1_12')
+tf.app.flags.DEFINE_float('regularizer_lambda', 0.004, 'Lambda for the regularization')
+tf.app.flags.DEFINE_float('regularizer_lambda_2', 0.004, 'Lambda for the regularization')
+
+tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
 tf.app.flags.DEFINE_integer('depth_multiplier', 4, '')
 
 FLAGS = tf.app.flags.FLAGS
 
 
-def _config_weights_regularizer(regularizer, scale, scale2=None):
-    if regularizer == 'l1':
+def _write_current_setting(train_path):
+    with os.open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
+        wf.write('%s' % train_path)
+        wf.write('train_tfr: %s' % FLAGS.train_tfr)
+
+        wf.write('optimizer: %s' % FLAGS.optimizer)
+        wf.write('learning_rate: %f' % FLAGS.learning_rate)
+        if FLAGS.optimizer == 'momentum':
+            wf.write('momentum: %f' % FLAGS.momentum)
+        elif FLAGS.optimizer == 'rmsprop':
+            wf.write('rmsprop_momentum: %f, rmsprop_decay: %f' % (FLAGS.rmsprop_momentum, FLAGS.rmsprop_decay))
+        elif FLAGS.optimizer == 'adam':
+            wf.write('adam_beta1: %f, adam_beta2: %f' % (FLAGS.adam_beta1, FLAGS.adam_beta2))
+        wf.write('learning_rate_decay_type: %s' % FLAGS.learning_rate_decay_type)
+        wf.write('learning_rate_decay_factor: %f' % FLAGS.learning_rate_decay_factor)
+
+        if FLAGS.use_batch_norm:
+            wf.write('use_batch_norm')
+
+        if FLAGS.moving_average_decay:
+            wf.write('moving_average_decay: %f', FLAGS.moving_average_decay)
+
+        wf.write('regularizer: %s' % FLAGS.regularizer)
+        if FLAGS.regularizer:
+            wf.write('lambda1: %f, lambda2: %f' % (FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)) \
+                if FLAGS.regularizer == 'l1_l2' else wf.write('lambda: %f' % FLAGS.regularizer_lambda)
+
+        if FLAGS.quantize_delay >= 0:
+            wf.write('quantize_delay: %d' % FLAGS.quantize_delay)
+
+        wf.write('depth_multiplier: %d' % FLAGS.depth_multiplier)
+
+
+def _config_weights_regularizer(reg, scale, scale2=None):
+    if reg == 'l1':
         return slim.l1_regularizer(scale)
-    elif regularizer == 'l2':
+    elif reg == 'l2':
         return slim.l2_regularizer(scale)
-    elif regularizer == 'l1_l2':
+    elif reg == 'l1_l2':
         return slim.l1_l2_regularizer(scale, scale2)
     else:
         raise ValueError('Regularizer [%s] was not recognized' % FLAGS.regularizer)
 
 
-def _config_optimizer(learning_rate):
+def _config_optimizer(lr):
     if FLAGS.optimizer == 'adadelta':
-        optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+        opt = tf.train.AdadeltaOptimizer(lr)
     elif FLAGS.optimizer == 'adagrad':
-        optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+        opt = tf.train.AdadeltaOptimizer(lr)
     elif FLAGS.optimizer == 'adam':
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        opt = tf.train.AdamOptimizer(lr, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
     elif FLAGS.optimizer == 'ftrl':
-        optimizer = tf.train.FtrlOptimizer(learning_rate)
+        opt = tf.train.FtrlOptimizer(lr)
     elif FLAGS.optimizer == 'momentum':
-        optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=FLAGS.momentum)
+        opt = tf.train.MomentumOptimizer(lr, momentum=FLAGS.momentum)
     elif FLAGS.optimizer == 'rmsprop':
-        optimizer = tf.train.RMSPropOptimizer(learning_rate)
+        opt = tf.train.RMSPropOptimizer(lr, decay=FLAGS.rmsprop_decay, momentum=FLAGS.rmsprop_momentum)
     elif FLAGS.optimizer == 'sgd':
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        opt = tf.train.GradientDescentOptimizer(lr)
     else:
         raise ValueError('Optimizer [%s] was not recognized' % FLAGS.optimizer)
 
-    return optimizer
+    return opt
 
 
-def _config_learning_rate(num_samples_per_epoch, global_step):
-    decay_steps = int(num_samples_per_epoch * FLAGS.num_epochs_per_decay / FLAGS.batch_size)
+def _config_learning_rate(gstep):
 
     if FLAGS.learning_rate_decay_type == 'exponential':
         return tf.train.exponential_decay(FLAGS.learning_rate,
-                                          global_step,
-                                          decay_steps,
+                                          gstep,
+                                          FLAGS.learning_rate_decay_step,
                                           FLAGS.learning_rate_decay_factor,
-                                          staircase=True,
+                                          staircase=FLAGS.learning_rate_decay_staircase,
                                           name='exponential_decay_learning_rate')
     elif FLAGS.learning_rate_decay_type == 'fixed':
         return tf.constant(FLAGS.learning_rate, name='fixed_learning_rate')
     elif FLAGS.learning_rate_decay_type == 'polynomial':
-        return tf.train.polynomial_decay(FLAGS.learning_rate, global_step, decay_steps,
+        return tf.train.polynomial_decay(FLAGS.learning_rate, gstep, FLAGS.learning_rate_decay_step,
                                          FLAGS.end_learning_rate, power=1.0, cycle=False,
                                          name='polynomial_decay_learning_rate')
     else:
@@ -110,6 +157,8 @@ if __name__=='__main__':
         TRAIN_TFR_PATH = FLAGS.train_tfr
         VAL_TFR_PATH = FLAGS.val_tfr
 
+        _write_current_setting(FLAGS.train_dir)
+
         count_train = 0
         for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
             count_train += 1
@@ -145,8 +194,10 @@ if __name__=='__main__':
             norm_params = {'is_training': True}
 
         regularizer = None
-        if FLAGS.regularizer:
-            regularizer = _config_weights_regularizer(FLAGS.regularizer, 0.001)
+        if FLAGS.regularizer == 'l1' or FLAGS.regularizer == 'l2':
+            regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda)
+        else:
+            regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
 
         # predictions, _ = net.lannet(image, is_training=True)
         with tf.variable_scope('model') as scope:
@@ -161,12 +212,16 @@ if __name__=='__main__':
 
         global_step = slim.create_global_step()
 
-        learning_rate = _config_learning_rate(count_train, global_step)
+        learning_rate = _config_learning_rate(global_step)
         optimizer = _config_optimizer(learning_rate)
 
         if FLAGS.moving_average_decay:
             moving_average_variables = slim.get_model_variables()
             variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
+
+        if FLAGS.quantize_delay > 0:
+            tf.contrib.quantize.create_training_graph(
+                quant_delay=FLAGS.quantize_delay)
 
         train_tensor = slim.learning.create_train_op(total_loss, optimizer)
         summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
