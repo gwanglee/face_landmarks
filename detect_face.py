@@ -65,9 +65,7 @@ flags.DEFINE_bool('disp', 'True',
 
 FLAGS = flags.FLAGS
 
-
-LANDMARK_INPUT_SIZE = 64
-
+LANDMARK_INPUT_SIZE = 56
 
 def prepare_filelist(folder_path):
     '''
@@ -140,7 +138,7 @@ if __name__ == '__main__':
 
     if LANDMARK_CKPT_PATH != '':
         # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
-        DEPTH_MULTIPLIER = 1
+        DEPTH_MULTIPLIER = 2
         NORM_FN = None
         NORM_PARAM = {}
         landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, depth_multiplier=DEPTH_MULTIPLIER,
@@ -375,4 +373,4 @@ if __name__ == '__main__':
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/trained/x6/fronzen.pb
+# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/trained/x13_momentum_0.005/model.ckpt-180000

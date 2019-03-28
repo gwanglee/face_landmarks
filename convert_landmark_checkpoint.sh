@@ -4,9 +4,9 @@ echo "Check if PYTHONPATH contains models/research:models/research/slim"
 echo "PYTHONPATH="$PYTHONPATH
 
 echo "Converting .ckpt to fronzen_graph"
-TRAINED_DIR="/Users/gglee/Data/Landmark/trained/x12"
+TRAINED_DIR="/Users/gglee/Data/Landmark/trained/x9_adam_0.001"
 PBTXT_NAME="graph.pbtxt"
-CKPT_NAME="model.ckpt-135000"
+CKPT_NAME="model.ckpt-180000"
 
 freeze_graph --input_graph=$TRAINED_DIR/$PBTXT_NAME --input_binary=false \
              --input_checkpoint=$TRAINED_DIR/$CKPT_NAME \

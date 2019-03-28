@@ -294,7 +294,20 @@ if __name__ == '__main__':
                 continue
 
             pbbox = get_bounding_box(points)            # point bounding box
-            cbox = pbbox                                # box to crop (it will be updated later)
+
+            # # todo: expand image if pbbox is large: not working
+            # pbw, pbh = pbbox['w'], pbbox['h']
+            # offset_x, offset_y = 0, 0
+            # if pbw > 0.5*W or pbh > 0.5*H:
+            #     offset_x = max(0, int((pbw*3 - W)/2))
+            #     offset_y = max(0, int((pbh*3 - H)/2))
+            #     image = cv2.copyMakeBorder(image, offset_y, offset_y, offset_x, offset_x, cv2.BORDER_REFLECT)
+            #     for p in points:
+            #         p[0] += offset_x
+            #         p[1] += offset_y
+            #         pbbox = get_bounding_box(points)  # point bounding box
+            #
+            # cbox = pbbox  # box to crop (it will be updated later)
 
             if DEBUG:
                 cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])), (int(pbbox['x']+pbbox['w']), int(pbbox['y']+pbbox['h'])), (0, 255, 255))
@@ -310,8 +323,8 @@ if __name__ == '__main__':
 
                     if DEBUG:
                         for d in dets:
-                            if d['conf'] > MIN_CONF:
-                                cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])), (int(d['conf']*255), 0, int(d['conf']*255)))
+                            # if d['conf'] > MIN_CONF:
+                            cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])), (int(d['conf']*255), 255, int(d['conf']*255)), 2)
                         cv2.imshow('no_match', image_debug)
                         cv2.waitKey(1)
                         if DEBUG:
