@@ -1,6 +1,7 @@
 import tensorflow as tf
 import net
 import os
+import numpy as np
 
 # https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
 
@@ -11,6 +12,7 @@ tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrec
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
+tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 
@@ -127,6 +129,16 @@ def _config_learning_rate(gstep):
         raise ValueError('learning_rate_decay_type [%s] was not recognized' % FLAGS.learning_rate_decay_type)
 
 
+def _config_loss_function(points, predictions):
+
+    if FLAGS.loss == 'l1':
+        return slim.losses.absolute_difference(points, predictions)
+    elif FLAGS.loss == 'l2':
+        return slim.losses.mean_squared_error(points, predictions)
+    elif FLAGS.loss == 'wing':
+        return wing_loss(points, predictions)
+
+
 def _parse_function(example_proto):
     features = {"image": tf.FixedLenFeature([56*56*3], tf.string),
                 "points": tf.FixedLenFeature([68*2], tf.float32)}
@@ -164,6 +176,24 @@ def _get_trainable_variables(t_scopes):
         var2train.extend(vars)
 
     return var2train
+
+
+def wing_loss(points, estimates, w=10, e=2):
+    if len(points) != len(estimates):
+        raise ValueError('point and landmark estimate should have the same length')
+
+    C = w - w/np.log(1+w/e)
+
+    def wing(x, _w, _e):
+        x = abs(x)
+        return _w * np.log(1+x/_e) if x < _w else x - C
+
+    # with tf.name_scoep(tf.GraphKeys.LOSSES) as scope:
+    wings = map(lambda x: wing(x[0]-x[1], w, e), zip(points, estimates))
+    wing_loss = tf.reduce_sum(wings)
+    tf.losses.add_loss(wing_loss, tf.GraphKeys.LoSSES)
+
+    return wing_loss
 
 
 # train_log_dir = '/home/gglee/Data/Landmark/train_logs/conv5+decay'
