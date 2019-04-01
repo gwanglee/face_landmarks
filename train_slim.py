@@ -51,6 +51,7 @@ def _write_current_setting(train_path):
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
 
         wf.write('optimizer: %s\n' % FLAGS.optimizer)
+        wf.write('loss: %s\n' % FLAGS.loss)
         wf.write('learning_rate: %f\n' % FLAGS.learning_rate)
         if FLAGS.optimizer == 'momentum':
             wf.write('momentum: %f\n' % FLAGS.momentum)
@@ -61,8 +62,8 @@ def _write_current_setting(train_path):
         wf.write('learning_rate_decay_type: %s\n' % FLAGS.learning_rate_decay_type)
         wf.write('learning_rate_decay_factor: %f\n' % FLAGS.learning_rate_decay_factor)
 
-        if FLAGS.use_batch_norm:
-            wf.write('use_batch_norm\n')
+
+        wf.write('use_batch_norm: %f\n' % FLAGS.use_batch_norm)
 
         if FLAGS.moving_average_decay:
             wf.write('moving_average_decay: %f\n' % FLAGS.moving_average_decay)
