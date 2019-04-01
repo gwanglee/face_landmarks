@@ -149,7 +149,7 @@ def _parse_function(example_proto):
     parsed_features = tf.parse_single_example(example_proto, features)
 
     img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, 3))
-    normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)
+    normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*2/255.0 -1.0
 
     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
     print('parsing >> ', normed, pts)
@@ -161,9 +161,8 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
     total_loss, should_stop = slim.learning.train_step(sess, train_op, global_step, train_step_kwargs)
 
     if train_step_fn.step % 1000 == 0:    # validation for every 1000 steps
-        # validation_loss = sess.run([val_loss])
-        # print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
-        print('>> global step {}: train={}'.format(train_step_fn.step, total_loss))
+        validation_loss = sess.run([val_loss])
+        print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
 
     return total_loss, should_stop
 
@@ -237,12 +236,13 @@ if __name__=='__main__':
         data_val = data_val.repeat()
         data_val = data_val.shuffle(1000)
         data_val = data_val.map(_parse_function, num_parallel_calls=16)
-        data_val = dataset.batch(FLAGS.batch_size)
+        data_val = data_val.batch(FLAGS.batch_size)
         data_val.prefetch(buffer_size=FLAGS.batch_size)
         iter_val = data_val.make_initializable_iterator()
 
         image, points = iterator.get_next()
         val_imgs, val_pts = iter_val.get_next()
+        print(image, val_imgs)
 
         norm_fn = None
         norm_params = {}
@@ -257,18 +257,16 @@ if __name__=='__main__':
             else:
                 regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
 
-        # predictions, _ = net.lannet(image, is_training=True)
         with tf.variable_scope('model') as scope:
             intensor = tf.identity(image, 'input')
             predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params,
                                         regularizer=regularizer, depth_mul=FLAGS.depth_multiplier)
-            # val_pred, _ = net.lannet(val_imgs, is_training=False)
+            val_pred, _ = net.lannet(val_imgs, is_training=False, normalizer_fn=norm_fn, normalizer_params=norm_params,
+                                     regularizer=regularizer, depth_mul=FLAGS.depth_multiplier)
 
-        # loss = slim.losses.absolute_difference(points, predictions)
-        print(points, predictions)
         loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
-        # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
+        val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
 
         global_step = slim.create_global_step()
 
@@ -292,7 +290,7 @@ if __name__=='__main__':
                                                      variables_to_train=trainable_vars)
         summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
         summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-        # summaries.add(tf.summary.scalar('losses/validation', val_loss))
+        summaries.add(tf.summary.scalar('losses/validation', val_loss))
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
         def init_fn(sess):

@@ -20,28 +20,43 @@ def _parse_function(example_proto):
     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)
 
     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
-    print('parsing >> ', normed, pts)
     return normed, pts
 
 
 def evaluate(ckpt_path, tfr_path):
-    with tf.Graph().as_default():
-        dataset = tf.data.TFRecordDataset(tfr_path)
-        dataset.map(_parse_function, num_parallel_calls=4)
-        dataset.prefetch(buffer_size=64)
-        iterator = dataset.make_initializable_iterator()
+    with tf.Session() as sess:
+        init = tf.initialize_all_variables()
+        sess.run(init)
 
-        image, points = iterator.get_next()
-        preds, _ = net.lannet(image, is_training=False)
+        with tf.Graph().as_default():
+            for r in tf.python_io.tf_record_iterator(tfr_path):
+                img_t, pts_t = _parse_function(r)
+                img = img_t.eval(sess)
+                pts = pts_t.eval(sess)
+                # img, pts = sess.run(img_t, pts_t)
+                print(img, pts)
 
-        eval_mae = slim.metrics.aggregate_metric_map({'loss': slim.metrics.streaming_mean_absolute_error(points, preds)})
+                print(img.shape, pts.shape)
+                exit()
+                # img, pts = img_t.eval(), pts_t.eval()
 
-        slim.evaluation.evaluate_once(checkpoint_path=ckpt_path,
-                                      logdir=ckpt_path,
-                                      local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
-                                                            iterator.initializer),
-                                      eval_op=eval_mae,
-                                      num_evals=128)
+            # preds, _ = net.lannet(img, is_training=False)
+
+            # print(pts, preds, sum(pts-preds))
+
+            # with tf.Session() as sess:
+
+            #     imbat, ptbat = sess.run(image, points)
+            #     print(imbat, ptbat)
+
+        # eval_mae = slim.metrics.aggregate_metric_map({'loss': slim.metrics.streaming_mean_absolute_error(points, preds)})
+        #
+        # slim.evaluation.evaluate_once(checkpoint_path=ckpt_path,
+        #                               logdir=ckpt_path,
+        #                               local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
+        #                                                      iterator.initializer),
+        #                               eval_op=eval_mae,
+        #                               num_evals=128)
 
 
 if __name__=='__main__':
@@ -52,6 +67,9 @@ if __name__=='__main__':
 
     for d in os.listdir(FLAGS.models_dir):
         path = os.path.join(FLAGS.models_dir, d)
+        if not os.path.isdir(path):
+            continue
+
         files = []
         for f in os.listdir(path):
             if f.endswith('.index'):
@@ -62,6 +80,6 @@ if __name__=='__main__':
 
         ckpt2use = os.path.join(path, largest)
         # ckpt2use = tf.train.latest_checkpoint(path)
-        print('evaluating %s on %s', ckpt2use, FLAGS.val_tfr)
+        print('evaluating %s on %s' % (ckpt2use, FLAGS.val_tfr))
 
         evaluate(ckpt2use, FLAGS.val_tfr)
