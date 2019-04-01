@@ -1,6 +1,7 @@
 import tensorflow as tf
 import net
 import os
+import math
 import numpy as np
 
 # https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
@@ -137,6 +138,8 @@ def _config_loss_function(points, predictions):
     elif FLAGS.loss == 'l2':
         return slim.losses.mean_squared_error(points, predictions)
     elif FLAGS.loss == 'wing':
+        # w = tf.constant(10.0)
+        # e = tf.constant(2.0)
         return wing_loss(points, predictions)
 
 
@@ -179,22 +182,27 @@ def _get_trainable_variables(t_scopes):
     return var2train
 
 
-def wing_loss(points, estimates, w=10, e=2):
-    if len(points) != len(estimates):
-        raise ValueError('point and landmark estimate should have the same length')
-
-    C = w - w/np.log(1+w/e)
-
-    def wing(x, _w, _e):
-        x = abs(x)
-        return _w * np.log(1+x/_e) if x < _w else x - C
-
-    # with tf.name_scoep(tf.GraphKeys.LOSSES) as scope:
-    wings = map(lambda x: wing(x[0]-x[1], w, e), zip(points, estimates))
-    wing_loss = tf.reduce_sum(wings)
-    tf.losses.add_loss(wing_loss, tf.GraphKeys.LoSSES)
-
-    return wing_loss
+def wing_loss(landmarks, labels, w=10.0, epsilon=2.0):
+    """
+    Arguments:
+        landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
+        w, epsilon: a float numbers.
+    Returns:
+        a float tensor with shape [].
+    """
+    with tf.name_scope('wing_loss'):
+        x = landmarks - labels
+        c = w * (1.0 - math.log(1.0 + w/epsilon))
+        absolute_x = tf.abs(x)
+        losses = tf.where(
+            tf.greater(w, absolute_x),
+            w * tf.log(1.0 + absolute_x/epsilon),
+            absolute_x - c
+        )
+        # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
+        loss = tf.reduce_mean(losses)
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
 
 
 # train_log_dir = '/home/gglee/Data/Landmark/train_logs/conv5+decay'
@@ -256,7 +264,9 @@ if __name__=='__main__':
                                         regularizer=regularizer, depth_mul=FLAGS.depth_multiplier)
             # val_pred, _ = net.lannet(val_imgs, is_training=False)
 
-        loss = slim.losses.absolute_difference(points, predictions)
+        # loss = slim.losses.absolute_difference(points, predictions)
+        print(points, predictions)
+        loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
         # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
 
