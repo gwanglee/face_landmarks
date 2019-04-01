@@ -43,7 +43,8 @@ def lannet(inputs, is_training=False, deopout_keep_prob=0.5, scope=None, depth_m
             net = end_points['conv6'] = slim.conv2d(net, 128*depth_mul, [3, 3], scope='conv5')
             net = slim.flatten(net)
             net = slim.fully_connected(net, 256*depth_mul, scope='fc6')  # none -> fc6
-            net = slim.fully_connected(net, 68*2, activation_fn=None, scope='fc7')
+            # net = slim.fully_connected(net, 68*2, activation_fn=None, scope='fc7')
+            net = slim.fully_connected(net, 68 * 2, scope='fc7')
 
         return net, end_points
 
