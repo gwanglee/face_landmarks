@@ -145,7 +145,7 @@ def _config_loss_function(points, predictions):
         return pointwise_l2_loss(points, predictions)
     elif FLAGS.loss == 'wing':
         return wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
-    elif FLAGS.loss == 'wing':
+    elif FLAGS.loss == 'euc_wing':
         return euc_wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
     else:
         raise ValueError('Could not recog. loss fn.')
