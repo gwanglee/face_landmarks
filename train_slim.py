@@ -198,7 +198,7 @@ def euc_wing_loss(landmarks, labels, w, epsilon):
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
 
-def pointwise_l2_loss(landmarks, labels, w, epsilon):
+def pointwise_l2_loss(landmarks, labels):
     """
     Arguments:
         landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
