@@ -16,7 +16,7 @@ tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
-tf.app.flags.DEFINE_float('wing_w', 0.3, 'w for wing_loss')
+tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
 tf.app.flags.DEFINE_float('wing_eps', 2, 'eps for wing_loss')
 
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')

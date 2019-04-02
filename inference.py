@@ -9,15 +9,16 @@ import net
 slim = tf.contrib.slim
 
 class Classifier(object):
-    def __init__(self, input_size, model_path, depth_multiplier=4, normalizer_fn=None, normalizer_params={}):
+    def __init__(self, input_size, model_path, depth_multiplier=4, normalizer_fn=None, normalizer_params={}, batch_size=8):
         self.input_size = input_size
+        self.batch_size = batch_size
 
         # with slim.arg_scope(net.arg_scope(weight_decay=0.0005)):
         with tf.Graph().as_default():
             self.sess = tf.Session()
             # Build a Graph that computes the logits predictions from the
             # inference model.
-            self.images_pholder = tf.placeholder(tf.float32, [8, input_size, input_size, 3])
+            self.images_pholder = tf.placeholder(tf.float32, [self.batch_size, input_size, input_size, 3])
 
             with tf.variable_scope('model') as scope:
                 self.landmarks, _ = net.lannet(self.images_pholder, is_training=False,

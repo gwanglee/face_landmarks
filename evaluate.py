@@ -1,4 +1,5 @@
 import tensorflow as tf
+import inference
 import net
 import os
 import numpy as np
@@ -27,7 +28,7 @@ def _parse_function(example_proto):
 
 def evaluate(ckpt_path, tfr_path):
     count_records = 0
-    for record in tf.python_io.tf_record_iterator(tfr_path):
+    for r in tf.python_io.tf_record_iterator(tfr_path):
         count_records += 1
 
     BATCH_WIDTH = 8
@@ -40,16 +41,49 @@ def evaluate(ckpt_path, tfr_path):
     dataset.prefetch(buffer_size=BATCH_SIZE)
     iterator = dataset.make_initializable_iterator()
 
+    path_setting = os.path.join(os.path.dirname(ckpt_path), 'train_setting.txt')
+    assert os.path.exists(path_setting) and os.path.isfile(path_setting), 'train_setting.txt not exist for [%s]' % ckpt_path
+
+    normalizer_fn = None
+    normalizer_params = {}
+    depth_multiplier = 1
+
+    with open(path_setting, 'r') as rf:
+        for l in rf:
+            print(l)
+            if 'use_batch_norm' in l:
+                _, bn_val = l.split(':')
+                if float(bn_val) > 0.0:
+                    norm_fn = slim.batch_norm
+                    norm_params = {'is_training': False}
+                    print(norm_fn, norm_params)
+            elif 'depth_multiplier' in l:
+                _, dm_val = l.split(':')
+                depth_multiplier = int(dm_val)
+                print('\t>>>depth_multiplier: %d' % depth_multiplier)
+
     image, points = iterator.get_next()
-    predicts, _ = net.lannet(image, is_training=False)
+
+    # ld = inference.Classifier(56, ckpt_path, depth_multiplier=depth_multiplier,
+    #                           normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
+
+    with tf.variable_scope('model') as scope:
+        predicts, _ = net.lannet(image, is_training=False, depth_mul=depth_multiplier,
+                             normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
 
     with tf.Session() as sess:
         init = [tf.initialize_all_variables(), iterator.initializer]
         sess.run(init)
 
+        saver = tf.train.Saver()
+        saver.restore(sess, ckpt_path)
+
         errs = []
 
         for i in range(NUM_ITER):
+            # img, pts = sess.run([image, points])
+            # prs = ld.predict(img)
+
             img, pts, prs = sess.run([image, points, predicts])
             img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
             mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)
@@ -64,6 +98,8 @@ def evaluate(ckpt_path, tfr_path):
                     cur_img = img[pos, :, :, :]
                     cur_pts = pts[pos]
                     cur_prs = prs[pos]
+                    # print(cur_pts)
+                    # print(cur_prs)
 
                     diff = cur_pts - cur_prs
                     err = 0
@@ -75,6 +111,8 @@ def evaluate(ckpt_path, tfr_path):
                         py = int(cur_pts[iy]*56)
                         cv2.circle(cur_img, (px, py), 2, (0, 0, 255), 1)
 
+                        # px = int(cur_prs[ix] * 28 + 28)
+                        # py = int(cur_prs[iy] * 28 + 28)
                         px = int(cur_prs[ix] * 56)
                         py = int(cur_prs[iy] * 56)
                         cv2.circle(cur_img, (px, py), 2, (0, 255, 0), 1)
@@ -90,7 +128,7 @@ def evaluate(ckpt_path, tfr_path):
                     mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
 
             err_total = np.mean(errs)
-            print('error: %.2f', err_total)
+            print('error: %.2f' % err_total)
             cv2.imshow("mosaic", mosaic)
             cv2.waitKey(1000)
 
@@ -110,7 +148,11 @@ if __name__=='__main__':
         for f in os.listdir(path):
             if f.endswith('.index'):
                 step_num = int(f.split('-')[1].split('.')[0])
-                files.append({'name': f, 'steps': step_num})
+                print('found model: %s' % f)
+                files.append({'name': os.path.splitext(f)[0], 'steps': step_num})
+
+        if len(files) == 0:
+            continue
 
         largest = sorted(files, key=itemgetter('steps'), reverse=True)[0]['name']
 
@@ -118,3 +160,4 @@ if __name__=='__main__':
         print('evaluating %s on %s' % (ckpt2use, FLAGS.val_tfr))
 
         evaluate(ckpt2use, FLAGS.val_tfr)
+        exit()
