@@ -22,8 +22,8 @@ def prepare_example(data):
     pts = np.reshape(pts, (len(pts), 1))
     # print(pts.shape)
 
-    # cv2.imshow('loaded', np.reshape(img, (56, 56, 3)))
-    # cv2.waitKey(-1)
+    cv2.imshow('loaded', np.reshape(img, (56, 56, 3)))
+    cv2.waitKey(-1)
 
     example = tf.train.Example(features = tf.train.Features(feature={
         'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=img.tobytes())),
@@ -53,8 +53,8 @@ def main(_):
     DATA_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402'
     TRAIN_RATIO = 0.9
 
-    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.cen.train.tfrecord'
-    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.cen.val.tfrecord'
+    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.tmp.tfrecord'
+    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.tmp.tfrecord'
 
     list_files = train.prepare_data_list(DATA_PATH)
     shuffle(list_files)
