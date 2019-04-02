@@ -185,7 +185,7 @@ def euc_wing_loss(landmarks, labels, w, epsilon):
     with tf.name_scope('wing_loss'):
         dx = landmarks - labels
         dx2 = tf.reshape(tf.multiply(dx, dx), [-1, 68, 2])  # [[dx0^2, dy0^2], [dx1^2, dy1^2], ..., [dxn^2, dyn^2]]
-        euc = tf.sqrt(tf.reduced_sum(dx2, 2))       # point-wise euclidean distance
+        euc = tf.sqrt(tf.reduce_sum(dx2, 2))       # point-wise euclidean distance
 
         c = w * (1.0 - math.log(1.0 + w / epsilon))
         losses = tf.where(
@@ -209,7 +209,7 @@ def pointwise_l2_loss(landmarks, labels):
     with tf.name_scope('pointwise_l2_loss'):
         dx = landmarks - labels
         dx2 = tf.reshape(tf.multiply(dx, dx), [-1, 68, 2])  # [[dx0^2, dy0^2], [dx1^2, dy1^2], ..., [dxn^2, dyn^2]]
-        l2 = tf.sqrt(tf.reduced_sum(dx2, 2))  # point-wise euclidean distance
+        l2 = tf.sqrt(tf.reduce_sum(dx2, 2))  # point-wise euclidean distance
         loss = tf.reduce_mean(l2)
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
