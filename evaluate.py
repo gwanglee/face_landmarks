@@ -52,6 +52,10 @@ def evaluate(ckpt_path, tfr_path):
             img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
             mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)
 
+            PX = 28
+            PY = 10
+            FONT_SCALE = 0.85
+
             for y in range(BATCH_WIDTH):
                 for x in range(BATCH_WIDTH):
                     pos = y*BATCH_WIDTH + x
@@ -59,19 +63,31 @@ def evaluate(ckpt_path, tfr_path):
                     cur_pts = pts[pos]
                     cur_prs = prs[pos]
 
+                    diff = cur_pts - cur_prs
+                    err = 0
+
                     for p in range(68):
-                        px = int(cur_pts[p * 2]*56)
-                        py = int(cur_pts[p * 2 + 1]*56)
+                        ix, iy = p * 2, p * 2 + 1
+
+                        px = int(cur_pts[ix]*56)
+                        py = int(cur_pts[iy]*56)
                         cv2.circle(cur_img, (px, py), 2, (0, 0, 255), 1)
 
-                        px = int(cur_prs[p * 2] * 56)
-                        py = int(cur_prs[p * 2 + 1] * 56)
+                        px = int(cur_prs[ix] * 56)
+                        py = int(cur_prs[iy] * 56)
                         cv2.circle(cur_img, (px, py), 2, (0, 255, 0), 1)
+
+                        e = np.sqrt(diff[ix]*diff[ix] + diff[iy]*diff[iy])
+                        err += e
+
+                    err /= 68
+                    cv2.putText(cur_img, '%.2f' % err, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+                    cv2.putText(cur_img, '%.2f' % err, (PX-1, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
 
                     mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
 
             cv2.imshow("mosaic", mosaic)
-            cv2.waitKey(100)
+            cv2.waitKey(1000)
 
 
 if __name__=='__main__':
