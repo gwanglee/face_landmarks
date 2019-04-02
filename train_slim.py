@@ -13,9 +13,11 @@ tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrec
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
-tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing]')
+tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
+tf.app.flags.DEFINE_float('wing_w', 0.3, 'w for wing_loss')
+tf.app.flags.DEFINE_float('wing_eps', 2, 'eps for wing_loss')
 
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
 tf.app.flags.DEFINE_float('rmsprop_momentum', 0.9, 'Momentum.')
@@ -134,13 +136,80 @@ def _config_learning_rate(gstep):
 def _config_loss_function(points, predictions):
 
     if FLAGS.loss == 'l1':
-        return slim.losses.absolute_difference(points, predictions)
+        # return slim.losses.absolute_difference(points, predictions)
+        return l1_loss(points, predictions)
     elif FLAGS.loss == 'l2':
-        return slim.losses.mean_squared_error(points, predictions)
+        # return slim.losses.mean_squared_error(points, predictions)
+        return l2_loss(points, predictions)
     elif FLAGS.loss == 'wing':
-        # w = tf.constant(10.0)
-        # e = tf.constant(2.0)
-        return wing_loss(points, predictions)
+        return wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
+    elif FLAGS.loss == 'wing':
+        return euc_wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
+    else:
+        raise ValueError('Could not recog. loss fn.')
+
+
+def wing_loss(landmarks, labels, w, epsilon):
+    """
+    Arguments:
+        landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
+        w, epsilon: a float numbers.
+    Returns:
+        a float tensor with shape [].
+    """
+    with tf.name_scope('wing_loss'):
+        x = landmarks - labels
+        c = w * (1.0 - math.log(1.0 + w / epsilon))
+        absolute_x = tf.abs(x)
+        losses = tf.where(
+            tf.greater(w, absolute_x),
+            w * tf.log(1.0 + absolute_x / epsilon),
+            absolute_x - c
+        )
+        # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
+        loss = tf.reduce_mean(losses)
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
+
+
+def euc_wing_loss(landmarks, labels, w, epsilon):
+    """
+    Arguments:
+        landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
+        w, epsilon: a float numbers.
+    Returns:
+        a float tensor with shape [].
+    """
+    with tf.name_scope('wing_loss'):
+        dx = landmarks - labels
+        dx2 = tf.reshape(tf.multiply(dx, dx), [68, 2])  # [[dx0^2, dy0^2], [dx1^2, dy1^2], ..., [dxn^2, dyn^2]]
+        euc = tf.sqrt(tf.sum(dx2[:, 0], dx2[:, 1]))       # point-wise euclidean distance
+
+        c = w * (1.0 - math.log(1.0 + w / epsilon))
+        losses = tf.where(
+            tf.greater(w, euc),
+            w * tf.log(1.0 + euc / epsilon),
+            euc - c
+        )
+        # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
+        loss = tf.reduce_mean(losses)
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
+
+
+def l1_loss(landmarks, predicts):
+    with tf.name_scope('l1_loss'):
+        loss = tf.reduce_mean(tf.abs(tf.subtract(landmarks, predicts)))
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
+
+
+def l2_loss(landmarks, predicts):
+    with tf.name_scope('l2_loss'):
+        diff = tf.subtract(landmarks, predicts)
+        loss = tf.reduce_mean(tf.multiply(diff, diff))
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
 
 
 def _parse_function(example_proto):
@@ -179,30 +248,6 @@ def _get_trainable_variables(t_scopes):
         var2train.extend(vars)
 
     return var2train
-
-
-def wing_loss(landmarks, labels, w=10.0, epsilon=2.0):
-    """
-    Arguments:
-        landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
-        w, epsilon: a float numbers.
-    Returns:
-        a float tensor with shape [].
-    """
-    with tf.name_scope('wing_loss'):
-        x = landmarks - labels
-        c = w * (1.0 - math.log(1.0 + w/epsilon))
-        absolute_x = tf.abs(x)
-        losses = tf.where(
-            tf.greater(w, absolute_x),
-            w * tf.log(1.0 + absolute_x/epsilon),
-            absolute_x - c
-        )
-        # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
-        loss = tf.reduce_mean(losses)
-        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
-        return loss
-
 
 # train_log_dir = '/home/gglee/Data/Landmark/train_logs/conv5+decay'
 # if not tf.gfile.Exists(train_log_dir):
