@@ -50,11 +50,11 @@ def make_tfrecord(tfr_path, lists):
 
 
 def main(_):
-    DATA_PATH = '/Users/gglee/Data/Landmark/export/160v5'
+    DATA_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402'
     TRAIN_RATIO = 0.9
 
-    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0322.train.tfrecord'
-    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0322.val.tfrecord'
+    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.cen.train.tfrecord'
+    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.cen.val.tfrecord'
 
     list_files = train.prepare_data_list(DATA_PATH)
     shuffle(list_files)

@@ -3,7 +3,7 @@ import os
 import cv2
 from copy import deepcopy
 
-DEBUG = True
+DEBUG = False
 PATCH_SIZE = 56
 
 MIN_CONF = 0.3
@@ -86,6 +86,21 @@ def normalize_points_with_rect(pts, faceRect):
     return normed
 
 
+def center_normalize_points_with_rect(pts, faceRect):
+    '''
+    normalize point coordiates w.r.t. the face rectanble
+    :param pts: landmark points
+    :param faceRect:  [l, t, r, b]
+    :return:
+    '''
+    l, t = faceRect['x'], faceRect['y']
+    w, h = faceRect['w'], faceRect['h']
+    cx, cy = (l+w)/2.0, (t+h)/2.0
+
+    normed = [[(p[0] - cx) / (w/2), (p[1] - cy) / (h/2)] for p in pts]
+    return normed
+
+
 def normalize_points(pts):
     '''
     normalize point coordinates between 0 ~ 1
@@ -140,9 +155,9 @@ def get_overlap(box1, box2):
     if t0 > b1 or b0 < t1:
         return 0.0
 
-    li = max(l0, l1)
-    ri = max(r0, r1)
-    ti = min(t0, t1)
+    li = max(l0, l1)        # intersection
+    ri = min(r0, r1)
+    ti = max(t0, t1)
     bi = min(b0, b1)
 
     ai = (ri-li)*(bi-ti)    # area of the intersection
@@ -295,20 +310,6 @@ if __name__ == '__main__':
 
             pbbox = get_bounding_box(points)            # point bounding box
 
-            # # todo: expand image if pbbox is large: not working
-            # pbw, pbh = pbbox['w'], pbbox['h']
-            # offset_x, offset_y = 0, 0
-            # if pbw > 0.5*W or pbh > 0.5*H:
-            #     offset_x = max(0, int((pbw*3 - W)/2))
-            #     offset_y = max(0, int((pbh*3 - H)/2))
-            #     image = cv2.copyMakeBorder(image, offset_y, offset_y, offset_x, offset_x, cv2.BORDER_REFLECT)
-            #     for p in points:
-            #         p[0] += offset_x
-            #         p[1] += offset_y
-            #         pbbox = get_bounding_box(points)  # point bounding box
-            #
-            # cbox = pbbox  # box to crop (it will be updated later)
-
             if DEBUG:
                 cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])), (int(pbbox['x']+pbbox['w']), int(pbbox['y']+pbbox['h'])), (0, 255, 255))
                 for p in points:
@@ -341,7 +342,7 @@ if __name__ == '__main__':
                 if EXTEND:
                     best = square_and_expand(best, EXTEND_RATIO, (W, H))
 
-                if DEBUG:   # draw best match extended in yellos
+                if DEBUG:   # draw best match extended in yellow
                     cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
                                   (int(best['x'] + best['w']), int(best['y'] + best['h'])), (255, 255, 0))
 
@@ -396,6 +397,10 @@ if __name__ == '__main__':
             normed = normalize_points_with_rect(points, cbox)
             pts = np.array(normed)
             pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
+
+            cnormed = center_normalize_points_with_rect(points, cbox)
+            cpts = np.array(normed)
+            cpts.tofile(os.path.join(WRITE_PATH, bname + '.cpts'))
 
             w, h = PATCH_SIZE, PATCH_SIZE
             for p in normed:
