@@ -13,7 +13,7 @@ tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrec
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
-tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing]')
+tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 tf.app.flags.DEFINE_float('wing_w', 0.3, 'w for wing_loss')
@@ -141,6 +141,8 @@ def _config_loss_function(points, predictions):
     elif FLAGS.loss == 'l2':
         # return slim.losses.mean_squared_error(points, predictions)
         return l2_loss(points, predictions)
+    elif FLAGS.loss == 'pointwise_l2':
+        return pointwise_l2_loss(points, predictions)
     elif FLAGS.loss == 'wing':
         return wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
     elif FLAGS.loss == 'wing':
@@ -193,6 +195,22 @@ def euc_wing_loss(landmarks, labels, w, epsilon):
         )
         # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
         loss = tf.reduce_mean(losses)
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
+
+def pointwise_l2_loss(landmarks, labels, w, epsilon):
+    """
+    Arguments:
+        landmarks, labels: float tensors with shape [batch_size, num_landmarks, 2].
+        w, epsilon: a float numbers.
+    Returns:
+        a float tensor with shape [].
+    """
+    with tf.name_scope('pointwise_l2_loss'):
+        dx = landmarks - labels
+        dx2 = tf.reshape(tf.multiply(dx, dx), [68, 2])  # [[dx0^2, dy0^2], [dx1^2, dy1^2], ..., [dxn^2, dyn^2]]
+        l2 = tf.sqrt(tf.sum(dx2[:, 0], dx2[:, 1]))  # point-wise euclidean distance
+        loss = tf.reduce_mean(l2)
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
 
