@@ -47,6 +47,8 @@ def evaluate(ckpt_path, tfr_path):
         init = [tf.initialize_all_variables(), iterator.initializer]
         sess.run(init)
 
+        errs = []
+
         for i in range(NUM_ITER):
             img, pts, prs = sess.run([image, points, predicts])
             img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
@@ -81,11 +83,14 @@ def evaluate(ckpt_path, tfr_path):
                         err += e
 
                     err /= 68
+                    errs.append(err)
                     cv2.putText(cur_img, '%.2f' % err, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
                     cv2.putText(cur_img, '%.2f' % err, (PX-1, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
 
                     mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
 
+            err_total = np.mean(errs)
+            print('error: %.2f', err_total)
             cv2.imshow("mosaic", mosaic)
             cv2.waitKey(1000)
 
