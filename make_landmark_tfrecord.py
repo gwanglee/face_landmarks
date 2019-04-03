@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 
-def prepare_example(data):
+def prepare_example(data, use_gray=False):
     assert os.path.exists(data[0])
     assert os.path.exists(data[1])
 
@@ -22,8 +22,12 @@ def prepare_example(data):
     pts = np.reshape(pts, (len(pts), 1))
     # print(pts.shape)
 
-    cv2.imshow('loaded', np.reshape(img, (56, 56, 3)))
-    cv2.waitKey(-1)
+    # cv2.imshow('loaded', np.reshape(img, (56, 56, 3)))
+    # cv2.waitKey(-1)
+
+    if use_gray:
+        img = cv2.cvtColor(np.reshape(img, (56, 56, 3)), cv2.COLOR_BGR2GRAY)
+        img = np.reshape(img, (1, -1))
 
     example = tf.train.Example(features = tf.train.Features(feature={
         'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=img.tobytes())),
@@ -35,11 +39,11 @@ def prepare_example(data):
     return example
 
 
-def make_tfrecord(tfr_path, lists):
+def make_tfrecord(tfr_path, lists, use_gray=False):
     writer = tf.python_io.TFRecordWriter(tfr_path)
 
     for i, l in enumerate(lists):
-        example = prepare_example(l)
+        example = prepare_example(l, use_gray=use_gray)
         if example:
             writer.write(example.SerializeToString())
 
@@ -50,11 +54,12 @@ def make_tfrecord(tfr_path, lists):
 
 
 def main(_):
-    DATA_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402'
+    DATA_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.ext'
     TRAIN_RATIO = 0.9
+    USE_GRAY=True
 
-    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.tmp.tfrecord'
-    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.tmp.tfrecord'
+    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.ext.gray.train.tfrecord'
+    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/160v5.0402.ext.gray.val.tfrecord'
 
     list_files = train.prepare_data_list(DATA_PATH)
     shuffle(list_files)
@@ -65,9 +70,8 @@ def main(_):
 
     print(len(train_list), len(val_list))
 
-    make_tfrecord(TRAIN_TFR_PATH, train_list)
-    make_tfrecord(VAL_TFR_PATH, val_list)
-
+    make_tfrecord(TRAIN_TFR_PATH, train_list, use_gray=USE_GRAY)
+    make_tfrecord(VAL_TFR_PATH, val_list, use_gray=USE_GRAY)
 
 if __name__=='__main__':
     tf.app.run()
