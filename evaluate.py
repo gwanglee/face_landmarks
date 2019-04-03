@@ -130,7 +130,10 @@ def evaluate(ckpt_path, tfr_path):
             err_total = np.mean(errs)
             print('error: %.2f' % err_total)
             cv2.imshow("mosaic", mosaic)
+            cv2.imwrite(os.path.join(ckpt_path, '%03d.jpg' % i))
             cv2.waitKey(1000)
+
+        return err_total
 
 
 if __name__=='__main__':
