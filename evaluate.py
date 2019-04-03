@@ -112,16 +112,16 @@ def evaluate(ckpt_path, tfr_path):
                     for p in range(68):
                         ix, iy = p * 2, p * 2 + 1
 
-                        px = int(cur_pts[ix]*56)
-                        py = int(cur_pts[iy]*56)
-                        cv2.circle(cur_img, (px, py), 2, (0, 0, 255), 1)
+                        px = int(cur_pts[ix]*56.0+0.5)
+                        py = int(cur_pts[iy]*56.0+0.5)
+                        cv2.rectangle(cur_img, (px-1, py-1), (px+1, py+1), (0, 0, 255), 1)
 
                         # px = int(cur_prs[ix] * 28 + 28)
                         # py = int(cur_prs[iy] * 28 + 28)
-                        px = int(cur_prs[ix] * 56)
-                        py = int(cur_prs[iy] * 56)
-                        cv2.circle(cur_img, (px, py), 2, (0, 255, 0), 1)
-
+                        px = int(cur_prs[ix] * 56 + 0.5)
+                        py = int(cur_prs[iy] * 56 + 0.5)
+                        cv2.line(cur_img, (px - 1, py + 1), (px + 1, py - 1), (0, 255, 0), 1)
+                        cv2.line(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 255, 0), 1)
                         e = np.sqrt(diff[ix]*diff[ix] + diff[iy]*diff[iy])
                         err += e
 
