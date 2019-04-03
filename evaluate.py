@@ -10,16 +10,22 @@ slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
+tf.app.flags.DEFINE_string('is_gray', False, 'gray or rgb input')
 
 FLAGS = tf.app.flags.FLAGS
 
-
+# fixme: same func in train_slim.py. need to refactoring
 def _parse_function(example_proto):
-    features = {"image": tf.FixedLenFeature([56*56*3], tf.string),
+    if FLAGS.is_gray:
+        CH = 1
+    else:
+        CH = 3
+
+    features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
                 "points": tf.FixedLenFeature([68*2], tf.float32)}
     parsed_features = tf.parse_single_example(example_proto, features)
 
-    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, 3))
+    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)
 
     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
