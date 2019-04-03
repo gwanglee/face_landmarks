@@ -11,6 +11,7 @@ slim = tf.contrib.slim
 tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', 'Directory for training and logging')
 tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
+tf.app.flags.DEFINE_boolean('is_gray', False, 'RGB or gray input')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
 tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2]')
@@ -52,21 +53,23 @@ def _write_current_setting(train_path):
     with open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
         wf.write('%s\n' % train_path)
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
+        wf.write('is_gray: %r' % FLAGS.is_gray)
 
         wf.write('optimizer: %s\n' % FLAGS.optimizer)
         wf.write('loss: %s\n' % FLAGS.loss)
         wf.write('learning_rate: %f\n' % FLAGS.learning_rate)
+
         if FLAGS.optimizer == 'momentum':
             wf.write('momentum: %f\n' % FLAGS.momentum)
         elif FLAGS.optimizer == 'rmsprop':
             wf.write('rmsprop_momentum: %f, rmsprop_decay: %f\n' % (FLAGS.rmsprop_momentum, FLAGS.rmsprop_decay))
         elif FLAGS.optimizer == 'adam':
             wf.write('adam_beta1: %f, adam_beta2: %f\n' % (FLAGS.adam_beta1, FLAGS.adam_beta2))
+
         wf.write('learning_rate_decay_type: %s\n' % FLAGS.learning_rate_decay_type)
         wf.write('learning_rate_decay_factor: %f\n' % FLAGS.learning_rate_decay_factor)
 
-
-        wf.write('use_batch_norm: %f\n' % FLAGS.use_batch_norm)
+        wf.write('use_batch_norm: %r\n' % FLAGS.use_batch_norm)
 
         if FLAGS.moving_average_decay:
             wf.write('moving_average_decay: %f\n' % FLAGS.moving_average_decay)
@@ -231,11 +234,16 @@ def l2_loss(landmarks, predicts):
 
 
 def _parse_function(example_proto):
-    features = {"image": tf.FixedLenFeature([56*56*3], tf.string),
+    if FLAGS.is_gray:
+        CH = 1
+    else:
+        CH = 3
+
+    features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
                 "points": tf.FixedLenFeature([68*2], tf.float32)}
     parsed_features = tf.parse_single_example(example_proto, features)
 
-    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, 3))
+    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*2/255.0 -1.0
 
     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
