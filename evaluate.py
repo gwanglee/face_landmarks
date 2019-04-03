@@ -10,7 +10,7 @@ slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
-tf.app.flags.DEFINE_string('is_gray', False, 'gray or rgb input')
+tf.app.flags.DEFINE_boolean('is_gray', False, 'gray or rgb input')
 
 FLAGS = tf.app.flags.FLAGS
 
