@@ -8,7 +8,7 @@ from operator import itemgetter
 
 slim = tf.contrib.slim
 
-tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
+tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
 
 FLAGS = tf.app.flags.FLAGS
@@ -54,9 +54,9 @@ def evaluate(ckpt_path, tfr_path):
             if 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
                 if float(bn_val) > 0.0:
-                    norm_fn = slim.batch_norm
-                    norm_params = {'is_training': False}
-                    print(norm_fn, norm_params)
+                    normalizer_fn = slim.batch_norm
+                    normalizer_params = {'is_training': False}
+                    print(normalizer_fn, normalizer_params)
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
                 depth_multiplier = int(dm_val)
@@ -157,7 +157,7 @@ if __name__=='__main__':
         largest = sorted(files, key=itemgetter('steps'), reverse=True)[0]['name']
 
         ckpt2use = os.path.join(path, largest)
-        print('evaluating %s on %s' % (ckpt2use, FLAGS.val_tfr))
+        print('evaluating %s on %s' % (ckpt2use, FLAGS.tfrecord))
 
-        evaluate(ckpt2use, FLAGS.val_tfr)
+        evaluate(ckpt2use, FLAGS.tfrecord)
         exit()
