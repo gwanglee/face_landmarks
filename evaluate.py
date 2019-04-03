@@ -50,17 +50,16 @@ def evaluate(ckpt_path, tfr_path):
 
     with open(path_setting, 'r') as rf:
         for l in rf:
-            print(l)
             if 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
                 if float(bn_val) > 0.0:
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
-                    print(normalizer_fn, normalizer_params)
+                    # print(normalizer_fn, normalizer_params)
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
                 depth_multiplier = int(dm_val)
-                print('\t>>>depth_multiplier: %d' % depth_multiplier)
+                # print('\t>>>depth_multiplier: %d' % depth_multiplier)
 
     image, points = iterator.get_next()
 
@@ -128,9 +127,9 @@ def evaluate(ckpt_path, tfr_path):
                     mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
 
             err_total = np.mean(errs)
-            print('error: %.2f' % err_total)
             cv2.imshow("mosaic", mosaic)
-            cv2.imwrite(os.path.join(ckpt_path, '%03d.jpg' % i))
+            img_save_path =('%s_%03d.jpg' % (ckpt_path, i))
+            cv2.imwrite(img_save_path, mosaic)
             cv2.waitKey(1000)
 
         return err_total
@@ -142,25 +141,24 @@ if __name__=='__main__':
         print('check models_dir (not a dir or not exist): %s' % FLAGS.models_dir)
         exit()
 
-    for d in os.listdir(FLAGS.models_dir):
-        path = os.path.join(FLAGS.models_dir, d)
-        if not os.path.isdir(path):
-            continue
+    with open(os.path.join(FLAGS.models_dir, 'eval.txt'), 'w') as wf:
+        for d in os.listdir(FLAGS.models_dir):
+            path = os.path.join(FLAGS.models_dir, d)
+            if not os.path.isdir(path):
+                continue
 
-        files = []
-        for f in os.listdir(path):
-            if f.endswith('.index'):
-                step_num = int(f.split('-')[1].split('.')[0])
-                print('found model: %s' % f)
-                files.append({'name': os.path.splitext(f)[0], 'steps': step_num})
+            files = []
+            for f in os.listdir(path):
+                if f.endswith('.index'):
+                    step_num = int(f.split('-')[1].split('.')[0])
+                    files.append({'name': os.path.splitext(f)[0], 'steps': step_num})
 
-        if len(files) == 0:
-            continue
+            if len(files) == 0:
+                continue
 
-        largest = sorted(files, key=itemgetter('steps'), reverse=True)[0]['name']
+            largest = sorted(files, key=itemgetter('steps'), reverse=True)[0]['name']
 
-        ckpt2use = os.path.join(path, largest)
-        print('evaluating %s on %s' % (ckpt2use, FLAGS.tfrecord))
-
-        evaluate(ckpt2use, FLAGS.tfrecord)
-        exit()
+            ckpt2use = os.path.join(path, largest)
+            err = evaluate(ckpt2use, FLAGS.tfrecord)
+            print('eval err = %.2f on \'%s\' and \'%s\'' % (err, ckpt2use, FLAGS.tfrecord))
+            wf.write('%s\t%s\t%f\n' % (os.path.basename(path), largest, err))
