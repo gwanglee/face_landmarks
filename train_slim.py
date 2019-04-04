@@ -310,6 +310,8 @@ if __name__=='__main__':
         if FLAGS.regularizer:
             if FLAGS.regularizer == 'l1' or FLAGS.regularizer == 'l2':
                 regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda)
+            elif FLAGS.regularizer == 'None':
+                regularizer = None
             else:
                 regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
 
