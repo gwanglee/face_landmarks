@@ -2,7 +2,7 @@ import tensorflow as tf
 import net
 import os
 import math
-import numpy as np
+import data_landmark as data
 
 # https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
 
@@ -11,7 +11,7 @@ slim = tf.contrib.slim
 tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', 'Directory for training and logging')
 tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
-tf.app.flags.DEFINE_boolean('is_gray', False, 'RGB or gray input')
+tf.app.flags.DEFINE_boolean('is_color', True, 'RGB or gray input')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
 tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2]')
@@ -53,7 +53,7 @@ def _write_current_setting(train_path):
     with open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
         wf.write('%s\n' % train_path)
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
-        wf.write('is_gray: %r' % FLAGS.is_gray)
+        wf.write('is_color: %r' % FLAGS.is_color)
 
         wf.write('optimizer: %s\n' % FLAGS.optimizer)
         wf.write('loss: %s\n' % FLAGS.loss)
@@ -171,7 +171,7 @@ def wing_loss(landmarks, labels, w, epsilon):
             w * tf.log(1.0 + absolute_x / epsilon),
             absolute_x - c
         )
-        # loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2]), axis=0)
+
         loss = tf.reduce_mean(losses)
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
@@ -232,23 +232,20 @@ def l2_loss(landmarks, predicts):
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
 
-
-def _parse_function(example_proto):
-    if FLAGS.is_gray:
-        CH = 1
-    else:
-        CH = 3
-
-    features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
-                "points": tf.FixedLenFeature([68*2], tf.float32)}
-    parsed_features = tf.parse_single_example(example_proto, features)
-
-    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
-    normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*2/255.0 -1.0
-
-    pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
-    print('parsing >> ', normed, pts)
-    return normed, pts
+# # fixme: _parse_func is in diff files. also, add augmentation
+# def _parse_function(example_proto):
+#     CH = 3 if FLAGS.is_color else 1
+#
+#     features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
+#                 "points": tf.FixedLenFeature([68*2], tf.float32)}
+#     parsed_features = tf.parse_single_example(example_proto, features)
+#
+#     img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
+#     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*2/255.0 -1.0
+#
+#     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
+#     print('parsing >> ', normed, pts)
+#     return normed, pts
 
 
 def train_step_fn(sess, train_op, global_step, train_step_kwargs):
@@ -286,33 +283,21 @@ if __name__=='__main__':
 
         _write_current_setting(FLAGS.train_dir)
 
-        count_train = 0
-        for record in tf.python_io.tf_record_iterator(TRAIN_TFR_PATH):
-            count_train += 1
-        print('%d samples in training data' % count_train)
+        train_data_count = data.get_tfr_record_count(TRAIN_TFR_PATH)
+        print('%d samples in training data' % train_data_count)
 
-        count_val = 0
-        for record in tf.python_io.tf_record_iterator(VAL_TFR_PATH):
-            count_val += 1
+        train_data = data.load_tfrecord(TRAIN_TFR_PATH, 56, FLAGS.batch_size, num_parallel_calls=16,
+                                        is_color=FLAGS.is_color, shuffle=True, augment=True)
+        train_data_itr = train_data.make_initializable_iterator()
 
-        dataset = tf.data.TFRecordDataset(TRAIN_TFR_PATH)
-        dataset = dataset.repeat()
-        dataset = dataset.shuffle(1000)
-        dataset = dataset.map(_parse_function, num_parallel_calls=16)
-        dataset = dataset.batch(FLAGS.batch_size)
-        dataset.prefetch(buffer_size=FLAGS.batch_size)
-        iterator = dataset.make_initializable_iterator()
+        val_data_count = data.get_tfr_record_count(VAL_TFR_PATH)
+        val_data = data.load_tfrecord(VAL_TFR_PATH, input_size=56, batch_size=FLAGS.batch_size, num_parallel_calls=16,
+                                      is_color=FLAGS.is_color, shuffle=False, augment=False)
+        val_data_itr = val_data.make_initializable_iterator()
 
-        data_val = tf.data.TFRecordDataset(VAL_TFR_PATH)
-        data_val = data_val.repeat()
-        data_val = data_val.shuffle(1000)
-        data_val = data_val.map(_parse_function, num_parallel_calls=16)
-        data_val = data_val.batch(FLAGS.batch_size)
-        data_val.prefetch(buffer_size=FLAGS.batch_size)
-        iter_val = data_val.make_initializable_iterator()
+        image, points = train_data_itr.get_next()
+        val_imgs, val_pts = val_data_itr.get_next()
 
-        image, points = iterator.get_next()
-        val_imgs, val_pts = iter_val.get_next()
         print(image, val_imgs)
 
         norm_fn = None
@@ -337,7 +322,8 @@ if __name__=='__main__':
 
         loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
-        val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
+        # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
+        val_loss = l2_loss(val_pts, val_pred)
 
         global_step = slim.create_global_step()
 
@@ -365,12 +351,12 @@ if __name__=='__main__':
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
         def init_fn(sess):
-            sess.run(iterator.initializer)
+            sess.run(train_data_itr.initializer)
 
         slim.learning.train(train_tensor,
                             logdir=FLAGS.train_dir,
                             local_init_op=tf.group(tf.local_variables_initializer(), tf.tables_initializer(),
-                                                   iterator.initializer, iter_val.initializer),
+                                                   train_data_itr.initializer, val_data_itr.initializer),
                             number_of_steps=FLAGS.max_number_of_steps,
                             save_summaries_secs=150,
                             save_interval_secs=300,

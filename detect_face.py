@@ -138,9 +138,9 @@ if __name__ == '__main__':
 
     if LANDMARK_CKPT_PATH != '':
         # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
-        DEPTH_MULTIPLIER = 1
-        NORM_FN = None
-        NORM_PARAM = {}
+        DEPTH_MULTIPLIER = 2
+        NORM_FN = tf.contrib.slim.batch_norm
+        NORM_PARAM = {'is_training': False}
         landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, depth_multiplier=DEPTH_MULTIPLIER,
                                               normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM)
 
@@ -287,20 +287,20 @@ if __name__ == '__main__':
                     cv2.rectangle(image_draw, (l, t), (r, b), (0, 0, 255), 2)   # red
                     cv2.circle(image_draw, (l, t), 3, (255, 255, 0), -1)
 
-                    # w, h = r - l, b - t
-                    #
-                    # if w == 0 or h == 0:
-                    #     print(box, '[%d, %d, %d, %d] w/ %.2f' %(l, t, r, b, scores[i]))
-                    #     continue
-                    #
-                    # cx, cy = (l + r) / 2.0, (b + t) / 2.0
-                    # w, h = (r - l), (b - t)
-                    # ts = max(w, h) * 1.2 / 2.0              # expand 20%
-                    #
-                    # l = int(min(max(0.0, cx - ts), WIDTH))
-                    # t = int(min(max(0.0, cy - ts), HEIGHT))
-                    # r = int(min(max(0.0, cx + ts), WIDTH))
-                    # b = int(min(max(0.0, cy + ts), HEIGHT))
+                    w, h = r - l, b - t
+
+                    if w == 0 or h == 0:
+                        print(box, '[%d, %d, %d, %d] w/ %.2f' %(l, t, r, b, scores[i]))
+                        continue
+
+                    cx, cy = (l + r) / 2.0, (b + t) / 2.0
+                    w, h = (r - l), (b - t)
+                    ts = max(w, h) * 1.1 / 2.0              # expand 20%
+
+                    l = int(min(max(0.0, cx - ts), WIDTH))
+                    t = int(min(max(0.0, cy - ts), HEIGHT))
+                    r = int(min(max(0.0, cx + ts), WIDTH))
+                    b = int(min(max(0.0, cy + ts), HEIGHT))
                     crop_boxes.append([l, t, r, b])
 
                     cv2.rectangle(image_draw, (l, t), (r, b), (0, 255, 0), 2)       # green: expanded

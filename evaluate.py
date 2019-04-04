@@ -10,16 +10,13 @@ slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
-tf.app.flags.DEFINE_boolean('is_gray', False, 'gray or rgb input')
+tf.app.flags.DEFINE_boolean('is_color', False, 'RGB or gray input')
 
 FLAGS = tf.app.flags.FLAGS
 
 # fixme: same func in train_slim.py. need to refactoring
 def _parse_function(example_proto):
-    if FLAGS.is_gray:
-        CH = 1
-    else:
-        CH = 3
+    CH = 3 if FLAGS.is_color else 1
 
     features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
                 "points": tf.FixedLenFeature([68*2], tf.float32)}
@@ -101,7 +98,7 @@ def evaluate(ckpt_path, tfr_path):
                 for x in range(BATCH_WIDTH):
                     pos = y*BATCH_WIDTH + x
                     cur_img = img[pos, :, :, :]
-                    if FLAGS.is_gray:
+                    if not FLAGS.is_color:
                         cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
 
                     cur_pts = pts[pos]
