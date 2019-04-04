@@ -50,7 +50,7 @@ def _write_current_setting(train_path):
     if not os.path.exists(train_path):
         os.makedirs(train_path)
 
-    with open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
+    with open(os.path.join(train_path, 'train_setting.txt\n'), 'w') as wf:
         wf.write('%s\n' % train_path)
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
         wf.write('is_color: %r' % FLAGS.is_color)
