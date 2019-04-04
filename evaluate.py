@@ -58,7 +58,7 @@ def evaluate(ckpt_path, tfr_path):
         for l in rf:
             if 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
-                if float(bn_val) > 0.0:
+                if bool(bn_val):
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
                     # print(normalizer_fn, normalizer_params)
@@ -101,6 +101,9 @@ def evaluate(ckpt_path, tfr_path):
                 for x in range(BATCH_WIDTH):
                     pos = y*BATCH_WIDTH + x
                     cur_img = img[pos, :, :, :]
+                    if FLAGS.is_gray:
+                        cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
+
                     cur_pts = pts[pos]
                     cur_prs = prs[pos]
                     # print(cur_pts)
