@@ -1,5 +1,5 @@
 import tensorflow as tf
-import inference
+import data_landmark as data
 import net
 import os
 import numpy as np
@@ -10,49 +10,25 @@ slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
-tf.app.flags.DEFINE_boolean('is_color', False, 'RGB or gray input')
 
 FLAGS = tf.app.flags.FLAGS
 
-# fixme: same func in train_slim.py. need to refactoring
-def _parse_function(example_proto):
-    CH = 3 if FLAGS.is_color else 1
-
-    features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
-                "points": tf.FixedLenFeature([68*2], tf.float32)}
-    parsed_features = tf.parse_single_example(example_proto, features)
-
-    img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
-    normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)
-
-    pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
-    return normed, pts
-
-
 def evaluate(ckpt_path, tfr_path):
-    count_records = 0
-    for r in tf.python_io.tf_record_iterator(tfr_path):
-        count_records += 1
 
-    BATCH_WIDTH = 8
-    BATCH_SIZE = BATCH_WIDTH*BATCH_WIDTH
-    NUM_ITER = int(count_records/BATCH_SIZE)
-
-    dataset = tf.data.TFRecordDataset(tfr_path)
-    dataset = dataset.map(_parse_function, num_parallel_calls=16)
-    dataset = dataset.batch(BATCH_SIZE)
-    dataset.prefetch(buffer_size=BATCH_SIZE)
-    iterator = dataset.make_initializable_iterator()
-
+    # load train_setting
     path_setting = os.path.join(os.path.dirname(ckpt_path), 'train_setting.txt')
-    assert os.path.exists(path_setting) and os.path.isfile(path_setting), 'train_setting.txt not exist for [%s]' % ckpt_path
+    assert os.path.exists(path_setting) and os.path.isfile(
+        path_setting), 'train_setting.txt not exist for [%s]' % ckpt_path
 
     normalizer_fn = None
     normalizer_params = {}
     depth_multiplier = 1
+    is_color = True
 
     with open(path_setting, 'r') as rf:
         for l in rf:
+            if 'is_color' in l:
+                _, is_color = l.split(':')
             if 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
                 if bool(bn_val):
@@ -62,12 +38,16 @@ def evaluate(ckpt_path, tfr_path):
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
                 depth_multiplier = int(dm_val)
-                # print('\t>>>depth_multiplier: %d' % depth_multiplier)
+
+    count_records = data.get_tfr_record_count(tfr_path)
+    dataset = data.load_tfrecord(tfr_path, batch_size=64, num_parallel_calls=16, is_color=is_color)
+    iterator = dataset.make_initializable_iterator()
+
+    BATCH_WIDTH = 8
+    BATCH_SIZE = BATCH_WIDTH*BATCH_WIDTH
+    NUM_ITER = int(count_records/BATCH_SIZE)
 
     image, points = iterator.get_next()
-
-    # ld = inference.Classifier(56, ckpt_path, depth_multiplier=depth_multiplier,
-    #                           normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
 
     with tf.variable_scope('model') as scope:
         predicts, _ = net.lannet(image, is_training=False, depth_mul=depth_multiplier,
@@ -83,9 +63,6 @@ def evaluate(ckpt_path, tfr_path):
         errs = []
 
         for i in range(NUM_ITER):
-            # img, pts = sess.run([image, points])
-            # prs = ld.predict(img)
-
             img, pts, prs = sess.run([image, points, predicts])
             img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
             mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)

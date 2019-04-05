@@ -50,7 +50,7 @@ def _write_current_setting(train_path):
     if not os.path.exists(train_path):
         os.makedirs(train_path)
 
-    with open(os.path.join(train_path, 'train_setting.txt'), 'w') as wf:
+    with open(os.path.join(train_path, 'train_setting.txt\n'), 'w') as wf:
         wf.write('%s\n' % train_path)
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
         wf.write('is_color: %r' % FLAGS.is_color)
@@ -310,6 +310,8 @@ if __name__=='__main__':
         if FLAGS.regularizer:
             if FLAGS.regularizer == 'l1' or FLAGS.regularizer == 'l2':
                 regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda)
+            elif FLAGS.regularizer == 'None':
+                regularizer = None
             else:
                 regularizer = _config_weights_regularizer(FLAGS.regularizer, FLAGS.regularizer_lambda, FLAGS.regularizer_lambda_2)
 
