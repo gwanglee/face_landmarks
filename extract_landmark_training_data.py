@@ -1,15 +1,32 @@
 import os
-# from PIL import Image, ImageDraw
 import cv2
+import numpy as np
 from copy import deepcopy
+from face_detector import Detector
+from random import random
 
-DEBUG = False
+DEBUG = True
 PATCH_SIZE = 56
 
 MIN_CONF = 0.3
 MIN_OVERLAP = 0.3
-EXTEND = False
+EXTEND = True
 EXTEND_RATIO = 0.1
+
+ROTATE = True
+MAX_ROTATE = 15
+
+# todo: add jittering?
+
+WRITE_PATH = '/Users/gglee/Data/Landmark/export/ROT15'
+
+IMAGES_DIR_PATHS = [
+        '/Users/gglee/Data/Landmark/300W/01_Indoor',
+        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
+        '/Users/gglee/Data/Landmark/menpo_train_release'
+    ]
+
+FACE_DETECTOR_PATH = '/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
 
 def get_files(folder_path):
     '''
@@ -30,7 +47,7 @@ def get_files(folder_path):
     return files
 
 
-def load_landmark_data(filepath):
+def read_pts(filepath):
     '''
     Read landmark points (.pts)
     :param filepath: path to the pts text file
@@ -47,9 +64,6 @@ def load_landmark_data(filepath):
 
         pts = []
 
-        if n_points != 68:
-            return pts
-
         rf.readline()
         for i in range(n_points):
             x, y = rf.readline().split(' ')
@@ -63,10 +77,11 @@ def load_landmark_data(filepath):
 
 def get_bounding_box(pts):
     '''
-    Get bounding box for given facial landmarks
+    Get bounding box for a given set of landmark points
     :param pts:
     :return: bbox in [l, t, r, b]
     '''
+
     x = [p[0] for p in pts]
     y = [p[1] for p in pts]
     return {'x': min(x), 'y': min(y), 'w': max(x)-min(x), 'h': max(y)-min(y)}
@@ -74,11 +89,12 @@ def get_bounding_box(pts):
 
 def normalize_points_with_rect(pts, faceRect):
     '''
-    normalize point coordiates w.r.t. the face rectanble
+    normalize point coordiates in range of [0, 1] w.r.t. the face rectangle
     :param pts: landmark points
     :param faceRect:  [l, t, r, b]
-    :return:
+    :return: normalized points
     '''
+
     l, t = faceRect['x'], faceRect['y']
     w, h = faceRect['w'], faceRect['h']
 
@@ -88,26 +104,18 @@ def normalize_points_with_rect(pts, faceRect):
 
 def center_normalize_points_with_rect(pts, faceRect):
     '''
-    normalize point coordiates w.r.t. the face rectanble
+    normalize point coordiates between [-1, 1] w.r.t. the face rectanble
     :param pts: landmark points
     :param faceRect:  [l, t, r, b]
-    :return:
+    :return: normalized points
     '''
+
     l, t = faceRect['x'], faceRect['y']
     w, h = faceRect['w'], faceRect['h']
     cx, cy = (l+w)/2.0, (t+h)/2.0
 
     normed = [[(p[0] - cx) / (w/2), (p[1] - cy) / (h/2)] for p in pts]
     return normed
-
-
-def normalize_points(pts):
-    '''
-    normalize point coordinates between 0 ~ 1
-    :param pts:
-    :return:
-    '''
-    return normalize_points_with_rect(pts, get_bounding_box(pts))
 
 
 def load_detection(image_path, det_name, th=0.1):
@@ -142,11 +150,12 @@ def load_detection(image_path, det_name, th=0.1):
 
 def get_overlap(box1, box2):
     '''
-    get iou
+    compute iou between two boxes
     :param box1:
     :param box2:
     :return:
     '''
+
     l0, t0, r0, b0 = box1['x'], box1['y'], box1['x']+box1['w'], box1['y']+box1['h']
     l1, t1, r1, b1 = box2['x'], box2['y'], box2['x']+box2['w'], box2['y']+box2['h']
 
@@ -205,7 +214,7 @@ def find_best_matching_box(target, detections, MIN_CONF=0.2, MIN_OVERLAP=0.2):
 
 def square_and_expand(box, r=0.0, frame=None):
     '''
-    make box to square and expand by given ratio
+    make box to square and expand its border
     :param box: target to extend
     :param r: extend ratio = 1+r
     :param frame: if not None, clip extended box to the frame (W, H)
@@ -256,22 +265,151 @@ def is_inside(in_box, out_box):
         return False
 
 
+def get_rotated_image_and_points(image, points, angle):
+    H, W, _ = image.shape
+    mat_rot = cv2.getRotationMatrix2D((W / 2, H / 2), angle, 1.0)
+    rotated = cv2.warpAffine(image, mat_rot, (W, H))
+
+    mat_arr = np.asarray(points, dtype=np.float).reshape((68, 2))
+    mat_arr3 = np.concatenate([mat_arr, np.ones((68, 1), dtype=np.float)], axis=1)
+    mat_rot_pts = np.transpose(np.matmul(mat_rot, np.transpose(mat_arr3)))
+
+    # if DEBUG:
+    #     for p in mat_rot_pts:
+    #         cv2.circle(rotated, (int(p[0]), int(p[1])), 2, (0, 255, 0))
+    #     cv2.imshow('rotated', rotated)
+
+    return rotated, mat_rot_pts
+
+
+def detect_face(detector, image, threshold=0.1):
+    H, W, _ = image.shape
+    resize2detect = cv2.cvtColor(cv2.resize(image, (160, 160)), cv2.COLOR_BGR2RGB)
+    imtensor = np.expand_dims(resize2detect, 0)
+    boxes, scores = detector.detect(imtensor)
+    detected = []
+
+    for i, b in enumerate(boxes):
+        if scores[i] > threshold:
+            detected.append(
+                {'x': b[1] * W, 'y': b[0] * H, 'w': (b[3] - b[1]) * W, 'h': (b[2] - b[0]) * H, 'conf': scores[i]})
+
+    return detected
+
+
+def get_box_to_crop(image, points):
+    if DEBUG:
+        image_debug = deepcopy(image)
+
+    H, W, _ = image.shape
+    frame = {'x': 0, 'y': 0, 'w': W, 'h': H}
+
+    pbbox = get_bounding_box(points)  # point bounding box
+
+    if DEBUG:
+        cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
+                      (int(pbbox['x'] + pbbox['w']), int(pbbox['y'] + pbbox['h'])), (0, 255, 255))
+        for p in points:
+            cv2.circle(image_debug, (int(p[0] + 0.5), int(p[1] + 0.5)), 2, (0, 255, 0))
+
+    detections = detect_face(detector, image, 0.5)
+    best = find_best_matching_box(pbbox, detections, MIN_CONF=MIN_CONF,
+                                  MIN_OVERLAP=MIN_OVERLAP)  # best matching detection
+
+    if DEBUG:
+        for d in detections:
+            cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x'] + d['w']), int(d['y'] + d['h'])),
+                          (0, int(d['conf'] * 255), 0), 2)
+
+    if not best:
+        if DEBUG:
+            save_path = os.path.join(os.path.dirname(s[0]), path_no_match)
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+        return None
+
+    if DEBUG:  # draw best match in RED
+        cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
+                      (int(best['x'] + best['w']), int(best['y'] + best['h'])), (0, 0, 255))
+
+    if EXTEND:
+        best = square_and_expand(best, EXTEND_RATIO, (W, H))
+
+    if DEBUG:  # draw best match extended in yellow
+        cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
+                      (int(best['x'] + best['w']), int(best['y'] + best['h'])), (255, 255, 0))
+
+    # if not is_inside(pbbox, best):
+    #     cnt_on_the_border += 1
+    #
+    #     if DEBUG:
+    #         cv2.imshow('point_out_of_box', image_debug)
+    #         cv2.waitKey(5)
+    #         if DEBUG:
+    #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
+    #             if not os.path.exists(save_path):
+    #                 os.mkdir(save_path)
+    #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+    #     continue
+
+    # if not is_inside(best, frame):      # or just clip it?
+    #     cnt_on_the_border += 1
+    #
+    #     if DEBUG:
+    #         cv2.imshow('detect_out_of_frame', image_debug)
+    #         cv2.waitKey(5)
+    #         if DEBUG:
+    #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
+    #             if not os.path.exists(save_path):
+    #                 os.mkdir(save_path)
+    #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+    #     continue
+
+    return best
+
+
+def save_training_data(image, points, crop_box, save_path, basename):
+    cropped = image[int(crop_box['y']):int(crop_box['y'] + crop_box['h']),
+              int(crop_box['x']):int(crop_box['x'] + crop_box['w']), :]
+    cropped = cv2.resize(cropped, (PATCH_SIZE, PATCH_SIZE))
+
+    arr = np.array(cropped).astype(dtype=np.uint8)
+    arr.tofile(os.path.join(save_path, basename + '.img'))
+
+    normed = normalize_points_with_rect(points, crop_box)
+    pts = np.array(normed)
+    pts.tofile(os.path.join(save_path, basename + '.pts'))
+
+    cnormed = center_normalize_points_with_rect(points, crop_box)
+    cpts = np.array(cnormed)
+    cpts.tofile(os.path.join(save_path, basename + '.cpts'))
+
+    w, h = PATCH_SIZE, PATCH_SIZE
+    for p in normed:
+        l, t, r, b = int(p[0] * w) - 1, int(p[1] * h) - 1, int(p[0] * w) + 1, int(p[1] * h) + 1
+        cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
+
+    cv2.imwrite(os.path.join(WRITE_PATH, basename + '.jpg'), cropped)
+
+    if DEBUG and random() < 0.01:
+        cv2.imshow('cropped', cropped)
+        cv2.waitKey(1)
+    # if DEBUG:
+    #     cv2.imshow('cropped', cropped)
+    #     cv2.imshow('image', image_debug)
+    #     cv2.waitKey(1)
+    # elif i % 10 == 0:
+    #     print('[%d / %d]: %s' % (i, len(samples), s[0]))
+    #     cv2.imshow('patch', cropped)
+    #     key = cv2.waitKey(10)
+
+
 if __name__ == '__main__':
-    PATH = [
-        '/Users/gglee/Data/Landmark/300W/01_Indoor',
-        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
-        '/Users/gglee/Data/Landmark/menpo_train_release'
-    ]
-
-    WRITE_PATH = '/Users/gglee/Data/Landmark/export'
-    DET_NAME = '160v5'
-
-    WRITE_PATH = os.path.join(WRITE_PATH, DET_NAME)
+    detector = Detector(FACE_DETECTOR_PATH, 160, 1)
 
     if not os.path.exists(WRITE_PATH):
         os.makedirs(WRITE_PATH)
-
-    import numpy as np
 
     if DEBUG:
         path_less_point = 'less_point'
@@ -280,144 +418,58 @@ if __name__ == '__main__':
         path_crop = 'crop'
 
     cnt_less_point = 0
+    cnt_no_overlap = 0
     cnt_on_the_border = 0
     cnt_generated = 0
-    cnt_no_overlap = 0
     cnt_total = 0
 
-    for P in PATH:
+    for P in IMAGES_DIR_PATHS:
         samples = get_files(P)
         cnt_total += len(samples)
 
         for i, s in enumerate(samples):
+            print('%d: %s, %s' % (i, s[0], s[1]))
             image = cv2.imread(s[0], cv2.IMREAD_COLOR)
+            points = np.reshape(read_pts(s[1]), (-1, 2))
+            basename = os.path.splitext(os.path.basename(s[0]))[0]
 
-            if DEBUG:
-                image_debug = deepcopy(image)
-
-            H, W, _ = image.shape
-            points = load_landmark_data(s[1])
-            frame = {'x': 0, 'y': 0, 'w': W, 'h': H}
-
-            if not points or len(points) != 68:
+            if len(points) != 68:
                 cnt_less_point += 1
                 if DEBUG:
                     save_path = os.path.join(os.path.dirname(s[0]), path_less_point)
                     if not os.path.exists(save_path):
                         os.mkdir(save_path)
-                    cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
+                    cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image)
                 continue
 
-            pbbox = get_bounding_box(points)            # point bounding box
-
-            if DEBUG:
-                cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])), (int(pbbox['x']+pbbox['w']), int(pbbox['y']+pbbox['h'])), (0, 255, 255))
-                for p in points:
-                    cv2.circle(image_debug, (int(p[0]+0.5), int(p[1]+0.5)), 2, (0, 255, 0))
-
-            if DET_NAME:
-                dets = load_detection(s[0], DET_NAME, th=MIN_CONF)
-                best = find_best_matching_box(pbbox, dets, MIN_CONF=MIN_CONF, MIN_OVERLAP=MIN_OVERLAP)     # best matching detection
-
-                if not best:
-                    cnt_no_overlap += 1
-
-                    if DEBUG:
-                        for d in dets:
-                            # if d['conf'] > MIN_CONF:
-                            cv2.rectangle(image_debug, (int(d['x']), int(d['y'])), (int(d['x']+d['w']), int(d['y']+d['h'])), (int(d['conf']*255), 255, int(d['conf']*255)), 2)
-                        cv2.imshow('no_match', image_debug)
-                        cv2.waitKey(1)
-                        if DEBUG:
-                            save_path = os.path.join(os.path.dirname(s[0]), path_no_match)
-                            if not os.path.exists(save_path):
-                                os.mkdir(save_path)
-                            cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
-                    continue
-
-                if DEBUG:   # draw best match in RED
-                    cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
-                                  (int(best['x'] + best['w']), int(best['y'] + best['h'])), (0, 0, 255))
-
-                if EXTEND:
-                    best = square_and_expand(best, EXTEND_RATIO, (W, H))
-
-                if DEBUG:   # draw best match extended in yellow
-                    cv2.rectangle(image_debug, (int(best['x']), int(best['y'])),
-                                  (int(best['x'] + best['w']), int(best['y'] + best['h'])), (255, 255, 0))
-
-                # if not is_inside(pbbox, best):
-                #     cnt_on_the_border += 1
-                #
-                #     if DEBUG:
-                #         cv2.imshow('point_out_of_box', image_debug)
-                #         cv2.waitKey(5)
-                #         if DEBUG:
-                #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
-                #             if not os.path.exists(save_path):
-                #                 os.mkdir(save_path)
-                #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
-                #     continue
-
-                # if not is_inside(best, frame):      # or just clip it?
-                #     cnt_on_the_border += 1
-                #
-                #     if DEBUG:
-                #         cv2.imshow('detect_out_of_frame', image_debug)
-                #         cv2.waitKey(5)
-                #         if DEBUG:
-                #             save_path = os.path.join(os.path.dirname(s[0]), path_border)
-                #             if not os.path.exists(save_path):
-                #                 os.mkdir(save_path)
-                #             cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image_debug)
-                #     continue
-
-                cbox = best
+            crop_box = get_box_to_crop(image, points)
+            if not crop_box:
+                cnt_no_overlap += 1
+                continue
             else:
-                if EXTEND:
-                    cbox = square_and_expand(pbbox, EXTEND_RATIO, (W, H))  # crop box
+                save_training_data(image, points, crop_box, WRITE_PATH, basename)
+                cnt_generated += 1
 
-            # if DEBUG:
-            #     cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
-            #                   (int(pbbox['x'] + pbbox['w']), int(pbbox['y'] + pbbox['h'])),
-            #                   (255, 0, 255), 1)
-            #     cv2.rectangle(image_debug, (int(cbox['x']), int(cbox['y'])), (int(cbox['x'] + cbox['w']),
-            #                                                                   int(cbox['y'] + cbox['h'])),
-            #                   (0, 255, 0), 1)
-            #     cv2.imshow('debug', image_debug)
+            if ROTATE:
+                angle = random()*MAX_ROTATE*2 - MAX_ROTATE
+                image, points = get_rotated_image_and_points(image, points, angle)
 
-            cropped = image[int(cbox['y']):int(cbox['y']+cbox['h']), int(cbox['x']):int(cbox['x']+cbox['w']), :]
-            cropped = cv2.resize(cropped, (PATCH_SIZE, PATCH_SIZE))
+                crop_box = get_box_to_crop(image, points)
+                if not crop_box:
+                    cnt_no_overlap += 1
+                    continue
+                else:
+                    save_training_data(image, points, crop_box, WRITE_PATH, basename + '_r')
+                    cnt_generated += 1
 
-            bname = os.path.splitext(os.path.basename(s[0]))[0]
-
-            arr = np.array(cropped).astype(dtype=np.uint8)
-            arr.tofile(os.path.join(WRITE_PATH, bname + '.img'))
-
-            normed = normalize_points_with_rect(points, cbox)
-            pts = np.array(normed)
-            pts.tofile(os.path.join(WRITE_PATH, bname + '.pts'))
-
-            cnormed = center_normalize_points_with_rect(points, cbox)
-            cpts = np.array(normed)
-            cpts.tofile(os.path.join(WRITE_PATH, bname + '.cpts'))
-
-            w, h = PATCH_SIZE, PATCH_SIZE
-            for p in normed:
-                l, t, r, b = int(p[0]*w) - 1, int(p[1]*h) - 1, int(p[0]*w) + 1, int(p[1]*h) + 1
-                cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
-
-            cv2.imwrite(os.path.join(WRITE_PATH, bname + '.jpg'), cropped)
-            cnt_generated += 1
-
-            if DEBUG:
-                cv2.imshow('cropped', cropped)
-                cv2.waitKey(1)
-
-            if i % 10 == 0:
-                print('[%d / %d]: %s' %(i, len(samples), s[0]))
-                cv2.imshow('patch', cropped)
-                key = cv2.waitKey(10)
+                # if DEBUG:
+                #     cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
+                #                   (int(pbbox['x'] + pbbox['w']), int(pbbox['y'] + pbbox['h'])),
+                #                   (255, 0, 255), 1)
+                #     cv2.rectangle(image_debug, (int(cbox['x']), int(cbox['y'])), (int(cbox['x'] + cbox['w']),
+                #                                                                   int(cbox['y'] + cbox['h'])),
+                #                   (0, 255, 0), 1)
+                #     cv2.imshow('debug', image_debug)
 
     print('generated: %d, border_out: %d, no_overlap: %d, less_point: %d, total: %d'%
           (cnt_generated, cnt_on_the_border, cnt_no_overlap, cnt_less_point, cnt_total))
