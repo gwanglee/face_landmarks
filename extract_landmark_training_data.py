@@ -4,6 +4,7 @@ import numpy as np
 from copy import deepcopy
 from face_detector import Detector
 from random import random
+from random import random
 
 DEBUG = True
 PATCH_SIZE = 56
@@ -18,15 +19,17 @@ MAX_ROTATE = 15
 
 # todo: add jittering?
 
-WRITE_PATH = '/Users/gglee/Data/Landmark/export/ROT15'
+WRITE_PATH = '/home/gglee/Data/Landmark/MPIE'
+RAND_FACTOR = 16.0
 
 IMAGES_DIR_PATHS = [
-        '/Users/gglee/Data/Landmark/300W/01_Indoor',
-        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
-        '/Users/gglee/Data/Landmark/menpo_train_release'
+        # '/home/gglee/gglee/Data/Landmark/300W/01_Indoor',
+        # '/Users/gglee/Data/Landmark/300W/02_Outdoor',
+        # '/Users/gglee/Data/Landmark/menpo_train_release',
+        '/home/gglee/Data/Multi-Pie/landmark'
     ]
 
-FACE_DETECTOR_PATH = '/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
+FACE_DETECTOR_PATH = '/home/gglee/Data/TensorflowCheckpoints/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
 
 def get_files(folder_path):
     '''
@@ -428,6 +431,9 @@ if __name__ == '__main__':
         cnt_total += len(samples)
 
         for i, s in enumerate(samples):
+            if random() > 1/RAND_FACTOR:
+                continue
+
             print('%d: %s, %s' % (i, s[0], s[1]))
             image = cv2.imread(s[0], cv2.IMREAD_COLOR)
             points = np.reshape(read_pts(s[1]), (-1, 2))

@@ -1,6 +1,9 @@
 import os
 from scipy.io import loadmat
 from shutil import copyfile
+from random import random
+
+RANDOM_SAMPLE = 30
 
 mpie_dir = '/home/gglee/Data/Multi-Pie/data'
 save_dir = '/home/gglee/Data/Multi-Pie/landmark'
@@ -10,6 +13,9 @@ if not os.path.exists(save_dir):
 num_copied = 0
 for root, dirs, files in os.walk(mpie_dir):
     for f in files:
+        if random() > 1.0/RANDOM_SAMPLE:
+            continue
+
         if f.endswith('.pts'):
             basename = f.split('.')[0]
             if os.path.exists(os.path.join(root, basename+'.png')):
