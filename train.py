@@ -17,7 +17,7 @@ NUM_LANDMARK_POINTS = 68
 
 slim = tf.contrib.slim
 
-def prepare_data_list(inpath):
+def prepare_data_list(inpath, pts_ext='.npts'):
     '''
 
     :param inpath:
@@ -28,7 +28,7 @@ def prepare_data_list(inpath):
     lists = []
     for l in os.listdir(inpath):
         if l.endswith('img'):
-            pts_path = os.path.join(inpath, os.path.splitext(l)[0] + '.pts')
+            pts_path = os.path.join(inpath, os.path.splitext(l)[0] + pts_ext)
             if os.path.exists(pts_path):
                 lists.append([os.path.join(inpath, l), pts_path])
 

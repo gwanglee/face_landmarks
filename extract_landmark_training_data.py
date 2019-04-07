@@ -4,7 +4,6 @@ import numpy as np
 from copy import deepcopy
 from face_detector import Detector
 from random import random
-from random import random
 
 DEBUG = True
 PATCH_SIZE = 56
@@ -15,7 +14,7 @@ EXTEND = True
 EXTEND_RATIO = 0.1
 
 ROTATE = True
-MAX_ROTATE = 15
+MAX_ROTATE = 30
 
 # todo: add jittering?
 
@@ -27,6 +26,10 @@ IMAGES_DIR_PATHS = [
         # '/Users/gglee/Data/Landmark/300W/02_Outdoor',
         # '/Users/gglee/Data/Landmark/menpo_train_release',
         '/home/gglee/Data/Multi-Pie/landmark'
+        '/Users/gglee/Data/Landmark/300W/01_Indoor',
+        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
+        '/Users/gglee/Data/Landmark/menpo_train_release',
+        '/Users/gglee/Data/Landmark/mpie'
     ]
 
 FACE_DETECTOR_PATH = '/home/gglee/Data/TensorflowCheckpoints/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
@@ -382,7 +385,7 @@ def save_training_data(image, points, crop_box, save_path, basename):
 
     normed = normalize_points_with_rect(points, crop_box)
     pts = np.array(normed)
-    pts.tofile(os.path.join(save_path, basename + '.pts'))
+    pts.tofile(os.path.join(save_path, basename + '.npts'))
 
     cnormed = center_normalize_points_with_rect(points, crop_box)
     cpts = np.array(cnormed)
