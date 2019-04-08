@@ -31,7 +31,7 @@ def load_tfrecord(tfr_path, input_size=56, batch_size=64, num_parallel_calls=8, 
     if shuffle:
         dataset = dataset.shuffle(1000)
     dataset = dataset.map(lambda ex: _parse_function(ex, input_size=input_size, is_color=is_color, augment=augment),
-                          num_parallel_calls=num_parallel_calls).cache()
+                          num_parallel_calls=num_parallel_calls)#.cache()
     dataset = dataset.batch(batch_size)
     dataset.prefetch(buffer_size=batch_size)
 
