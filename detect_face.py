@@ -321,8 +321,13 @@ if __name__ == '__main__':
 
                     for i, box in enumerate(crop_boxes):
                         H, W = box[3]-box[1], box[2] - box[0]
+                        for j in range(68):
+                            if j not in [16, 21, 26, 41, 30, 47, 35, 59, 67]:
+                                p0, p1 = landmarks[i][j], landmarks[i][j+1]
+                                cv2.line(image_draw, (int(box[0]+(p0[0]*W)+0.5), int(box[1]+(p0[1]*H)+0.5)),
+                                         (int(box[0] + (p1[0] * W) + 0.5), int(box[1] + (p1[1] * H) + 0.5)), (0, 0, 255), 1)
                         for p in landmarks[i]:
-                            cv2.circle(image_draw, (int(box[0]+(p[0]*W)), int(box[1]+(p[1]*H))), 2, (0, 255, 255))
+                            cv2.circle(image_draw, (int(box[0]+(p[0]*W)+0.5), int(box[1]+(p[1]*H)+0.5)), 2, (0, 255, 255))
 
                 cv2.imshow("image", image_draw)
 
@@ -373,4 +378,4 @@ if __name__ == '__main__':
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
 # python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/trained/x13_momentum_0.005/model.ckpt-180000
+# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000

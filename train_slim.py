@@ -170,6 +170,8 @@ def chain_loss(landmarks, labels):
         pd = tf.subtract(p2d0, p2d1)        # (dx, dy) for prediction
         gd = tf.subtract(g2d0, g2d1)        # (dx, dy) for ground truth
 
+        # fixme: change ops ordering >> abs(sub(slice(pd, gd))) -> slice(abs(sub(pd, gd)))
+
         begin, size = 1-1, 17-1
         pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
         pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
