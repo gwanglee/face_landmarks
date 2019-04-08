@@ -14,7 +14,7 @@ tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord'
 tf.app.flags.DEFINE_boolean('is_color', True, 'RGB or gray input')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
-tf.app.flags.DEFINE_string('loss', 'wing', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2]')
+tf.app.flags.DEFINE_string('loss', 'l1', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2, chain]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
@@ -150,8 +150,69 @@ def _config_loss_function(points, predictions):
         return wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
     elif FLAGS.loss == 'euc_wing':
         return euc_wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
+    elif FLAGS.loss == 'chain':
+        return chain_loss(points, predictions)
     else:
         raise ValueError('Could not recog. loss fn.')
+
+def chain_loss(landmarks, labels):
+    with tf.name_scope('chain_loss'):
+        N = FLAGS.batch_size
+        p2d = tf.reshape(landmarks, (N, 68, 2))
+        g2d = tf.reshape(labels, (N, 68, 2))
+
+        p2d0 = tf.slice(p2d, [0, 0, 0], [N, 68-1, 2])
+        p2d1 = tf.slice(p2d, [0, 1, 0], [N, 68-1, 2])
+
+        g2d0 = tf.slice(g2d, [0, 0, 0], [N, 68 - 1, 2])
+        g2d1 = tf.slice(g2d, [0, 1, 0], [N, 68 - 1, 2])
+
+        pd = tf.subtract(p2d0, p2d1)        # (dx, dy) for prediction
+        gd = tf.subtrace(g2d0, g2d1)        # (dx, dy) for ground truth
+
+        begin, size = 1-1, 17-1
+        l1_face = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 18-1, 22-18
+        l1_lebrow = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 23-1, 27-23
+        l1_rebrow = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 37 - 1, 42-37
+        l1_leye = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 43 - 1, 48 - 43
+        l1_reye = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 28 - 1, 31-28
+        l1_nose_1 = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 32 - 1, 36 - 32
+        l1_nose_2 = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 49 - 1, 60-49
+        l1_mouth_out = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        begin, size = 61 - 1, 68 - 61
+        l1_mouth_in = tf.reduce_mean(
+            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+
+        losses = tf.concat([l1_face, l1_lebrow, l1_rebrow, l1_leye, l1_reye, l1_nose_1, l1_nose_2, l1_mouth_out, l1_mouth_in], 1)
+        loss_shape = tf.reduce_mean(losses)
+        loss_l1 = l1_loss(landmarks, labels)
+        loss = loss_l1 + loss_shape
+
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
 
 
 def wing_loss(landmarks, labels, w, epsilon):
