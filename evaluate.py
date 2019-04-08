@@ -9,7 +9,7 @@ from operator import itemgetter
 slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
-tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train', 'where trained models are stored')
+tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train/0408', 'where trained models are stored')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -75,7 +75,7 @@ def evaluate(ckpt_path, tfr_path):
                 for x in range(BATCH_WIDTH):
                     pos = y*BATCH_WIDTH + x
                     cur_img = img[pos, :, :, :]
-                    if not FLAGS.is_color:
+                    if not is_color:
                         cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
 
                     cur_pts = pts[pos]
