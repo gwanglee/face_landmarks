@@ -1,5 +1,4 @@
 import tensorflow as tf
-import cv2
 import numpy as np
 
 def _parse_function(example_proto, input_size=56, is_color=True, augment=False):
@@ -67,6 +66,7 @@ if __name__=='__main__':
                     curp = pts[i, :]
                     img = np.asarray((curi + 1.0) * 255.0 / 2.0, dtype=np.uint8)
 
+                    import cv2
                     for p in range(68):
                         x = int(curp[p*2]*56)
                         y = int(curp[p*2+1]*56)
