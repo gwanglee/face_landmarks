@@ -158,8 +158,8 @@ def _config_loss_function(points, predictions):
 def chain_loss(landmarks, labels):
     with tf.name_scope('chain_loss'):
         N = FLAGS.batch_size
-        p2d = tf.reshape(landmarks, (N, 68, 2))
-        g2d = tf.reshape(labels, (N, 68, 2))
+        p2d = tf.reshape(landmarks, (-1, 68, 2))
+        g2d = tf.reshape(labels, (-1, 68, 2))
 
         p2d0 = tf.slice(p2d, [0, 0, 0], [N, 68-1, 2])
         p2d1 = tf.slice(p2d, [0, 1, 0], [N, 68-1, 2])
@@ -168,43 +168,52 @@ def chain_loss(landmarks, labels):
         g2d1 = tf.slice(g2d, [0, 1, 0], [N, 68 - 1, 2])
 
         pd = tf.subtract(p2d0, p2d1)        # (dx, dy) for prediction
-        gd = tf.subtrace(g2d0, g2d1)        # (dx, dy) for ground truth
+        gd = tf.subtract(g2d0, g2d1)        # (dx, dy) for ground truth
 
         begin, size = 1-1, 17-1
-        l1_face = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_face = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 18-1, 22-18
-        l1_lebrow = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_lebrow = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 23-1, 27-23
-        l1_rebrow = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_rebrow = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 37 - 1, 42-37
-        l1_leye = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_leye = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 43 - 1, 48 - 43
-        l1_reye = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_reye = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 28 - 1, 31-28
-        l1_nose_1 = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_nose_1 = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 32 - 1, 36 - 32
-        l1_nose_2 = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_nose_2 = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 49 - 1, 60-49
-        l1_mouth_out = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_mouth_out = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         begin, size = 61 - 1, 68 - 61
-        l1_mouth_in = tf.reduce_mean(
-            tf.abs(tf.subtract(tf.slice(pd, [0, begin, 0], [N, size, 2]), tf.slice(gd, [0, begin, 0], [N, size, 2]))))
+        pp = tf.slice(pd, [0, begin, 0], [N, size, 2])
+        pg = tf.slice(gd, [0, begin, 0], [N, size, 2])
+        l1_mouth_in = tf.reshape(tf.reduce_mean(tf.abs(tf.subtract(pp, pg))), [1, 1])
 
         losses = tf.concat([l1_face, l1_lebrow, l1_rebrow, l1_leye, l1_reye, l1_nose_1, l1_nose_2, l1_mouth_out, l1_mouth_in], 1)
         loss_shape = tf.reduce_mean(losses)
