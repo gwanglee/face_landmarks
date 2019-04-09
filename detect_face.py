@@ -7,6 +7,7 @@ import cv2
 from shutil import rmtree
 import inference as infer
 from copy import deepcopy
+from operator import itemgetter
 
 '''
 Usage:
@@ -87,6 +88,8 @@ def prepare_filelist(folder_path):
                 cur = {'folder': folder_path, 'basename': base, 'ext': ext}
                 images_to_test.append(cur)
 
+    images_to_test = sorted(images_to_test, key=itemgetter('basename'))
+
     return images_to_test
 
 
@@ -166,8 +169,8 @@ if __name__ == '__main__':
         cap = cv2.VideoCapture(0)
 
 
-    WRITE_WIDTH = 624
-    WRITE_HEIGHT = 352
+    WRITE_WIDTH = int(1980/2)
+    WRITE_HEIGHT = int(1080/2)
     video_writer = cv2.VideoWriter("/Users/gglee/Data/out.avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 15.0, (WRITE_WIDTH, WRITE_HEIGHT))
 
     # if FLAGS.save_images:
@@ -333,7 +336,7 @@ if __name__ == '__main__':
 
                 if video_writer.isOpened():
                     image_write = cv2.resize(image_draw, (WRITE_WIDTH, WRITE_HEIGHT))
-                    video_writer.write(image_write)
+                    video_writer.write(image)
                     
                 key = cv2.waitKey(1)
                 if key == 113 or key == 120:
