@@ -1,36 +1,36 @@
 import numpy as np
 import os
-import sys
 import tensorflow as tf
 from time import time
 import cv2
-from shutil import rmtree
 import inference as infer
 from copy import deepcopy
 from operator import itemgetter
+from evaluate import  load_settings
+
 
 '''
 Usage:
 
 (1) to detect from camera:
-python detect_faces.py \
+python detect_face_landmark.py \
         --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
-        [--write_dir_name=folder_name_to_save] [--dist=True]
+        [--write_txt_dir=folder_name_to_save] [--dist=True]
         
 (2) to detect from a local video file:
-python detect_faces.py --video_path='/video/file/to/run/detection.avi' \
+python detect_face_landmark.py --video_path='/video/file/to/run/detection.avi' \
         --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
-        [--write_dir_name=folder_name_to_save] [--dist=True]
+        [--write_txt_dir=folder_name_to_save] [--dist=True]
         
 (3) to detect from images in a folder:
-python detect_faces.py --images_dir='/folder/name/to/load/images' \
+python detect_face_landmark.py --images_dir='/folder/name/to/load/images' \
         --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
-        [--write_dir_name=folder_name_to_save] [--dist=True]
+        [--write_txt_dir=folder_name_to_save] [--dist=True]
         
 (4) to detect from series of folders containing images:
-python detect_faces.py --folder_list='/some/file/containing/folder/names.txt' \
+python detect_face_landmark.py --folder_list='/some/file/containing/folder/names.txt' \
         --face_checkpoint_dir=/must/specified [--landmark_checkpoint_path=/can/be/omitted] \ 
-        [--write_dir_name=folder_name_to_save] [--dist=True]
+        [--write_txt_dir=folder_name_to_save] [--dist=True]
 '''
 
 flags = tf.app.flags
@@ -52,14 +52,11 @@ flags.DEFINE_string('images_dir', '',
                     'Directory containing images for evaluation. If empty, camera stream is used for input')
 
 flags.DEFINE_string('folder_list', '',
-                    'Text file that contains directories to scaen')
+                    'Text file that contains directories to scan')
 
-flags.DEFINE_string('write_dir_name', '',
+flags.DEFINE_string('write_txt_dir', None,
                     'If specified, a folder will be created by the given name and detection result will be saved as .txt'
                     'Only work for image sources, not video')
-
-flags.DEFINE_bool('save_images', 'True',
-                  'If true, save resulting images or video with detection boxes.')
 
 flags.DEFINE_bool('disp', 'True',
                   'If true, show detection images (only for file input)')
@@ -93,59 +90,80 @@ def prepare_filelist(folder_path):
     return images_to_test
 
 
-def write_detection(write_dir, entry, boxes, scores, th_score):
+def write_detection(write_dir, basename, face_landmarks):
 
     assert os.path.exists(write_dir), 'Folder not exist: %s' % write_dir
 
-    with open(os.path.join(write_dir, entry['basename'] + '.txt'), 'w') as write_file:
-        write_file.write(entry['basename'] + '\n')
+    with open(os.path.join(write_dir, basename + '.txt'), 'w') as wf:
+        wf.write(entry['basename'] + '\n')
+        wf.write('%d\n' % len(face_landmarks))
 
-        str_to_write = []
+        for res in face_landmarks:
+            wf.write('%d %d %d %d\n' % (res['face'][0], res['face'][1], res['face'][2], res['face'][3]))
+            for i in range(68):
+                wf.write('%.3f %.3f ' % (res['landmark'][i][0], res['landmark'][i][1]))
+        wf.write('\n')
 
-        HEIGHT, WIDTH = image_np.shape[0:2]
 
-        for i in range(boxes.shape[0]):
-            ymin, xmin, ymax, xmax = boxes[i]
-            x, y = xmin * WIDTH, ymin * HEIGHT
-            h, w = (ymax - ymin) * HEIGHT, (xmax - xmin) * WIDTH
+def read_detection(filepath):
+    assert os.path.exists(filepath), 'file not exist: %s' % filepath
+    detection = []
 
-            if scores[i] > th_score:
-                str_to_write.append(('%f %f %f %f %f\n' % (x, y, w, h, scores[i])))
+    with open(filepath) as rf:
+        header = rf.readline()
+        if header.strip() != os.path.splitext(os.path.basename(filepath))[0]:
+            raise ValueError('Wrong detection file : %s ' % filepath)
 
-        write_file.write('%d\n' % len(str_to_write))
-        for s in str_to_write:
-            write_file.write(s)
+        num = int(rf.readline().strip())
+
+        for i in range(num):
+            l, t, r, b = rf.readline().split()
+            l, t, r, b = int(l.strip()), int(t.strip()), int(r.strip()), int(b.strip())
+
+            landmark = []
+            for p in rf.readline().split():
+                landmark.append(float(p.strip()))
+
+            detection.append({'face': [l, t, r, b], 'landmark': landmark})
+
+    return detection
 
 
 if __name__ == '__main__':
 
-    # mode related
+    # models
     MODEL_NAME = FLAGS.face_checkpoint_dir
     FACE_CKPT_PATH = os.path.join(MODEL_NAME, 'frozen_inference_graph.pb')
     LANDMARK_CKPT_PATH = FLAGS.landmark_checkpoint_path
     LABEL_MAP_PATH = FLAGS.label_map_path
 
-    # source related
+    # source
     IMAGES_DIR = FLAGS.images_dir
     VIDEO_PATH = FLAGS.video_path
     FOLDER_LISTS_TXT = FLAGS.folder_list
 
-    # actions rlated
-    WRITE_DET_DIR = FLAGS.write_dir_name
+    # save & display
+    WRITE_TXT_DIR = FLAGS.write_txt_dir
     DISP = FLAGS.disp
+
+    FACE_SCORE_THRESHOLD = 0.5
 
     video_writer = None
     cap = None
-    use_camera = False
     landmark_estimator = None
+    LIVE_FEED = False
+
+    landmark_settings = load_settings(LANDMARK_CKPT_PATH)
 
     if LANDMARK_CKPT_PATH != '':
         # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
-        DEPTH_MULTIPLIER = 2
-        NORM_FN = tf.contrib.slim.batch_norm
-        NORM_PARAM = {'is_training': False}
+        DEPTH_MULTIPLIER = landmark_settings['depth_multiplier']
+        NORM_FN = landmark_settings['normalizer_fn']
+        NORM_PARAM = landmark_settings['normalizer_params']
+        LANDMARK_BATCHSIZE = 8
+
         landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, depth_multiplier=DEPTH_MULTIPLIER,
-                                              normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM)
+                                              normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM, batch_size=LANDMARK_BATCHSIZE)
 
     # set sources
     image_to_test = []
@@ -165,9 +183,8 @@ if __name__ == '__main__':
                 assert os.path.exists(l) and os.path.isdir(l), 'Folder exist: %d or dir: %d, %s' % (os.path.exists(l), os.path.isdir(l), l)
                 image_to_test += prepare_filelist(l)
     else:
-        use_camera = True
         cap = cv2.VideoCapture(0)
-
+        LIVE_FEED = True
 
     WRITE_WIDTH = int(1980/2)
     WRITE_HEIGHT = int(1080/2)
@@ -231,6 +248,7 @@ if __name__ == '__main__':
             while more:
                 if cap:
                     more, image = cap.read()
+                    entry = {'folder': os.path.splitext(VIDEO_PATH)[0], 'basename': '%05d' % int(cap.get(cv2.CAP_PROP_POS_FRAMES)) }
                 else:
                     entry = image_to_test[pos]
                     # for image_path in TEST_IMAGE_PATHS:
@@ -258,17 +276,6 @@ if __name__ == '__main__':
                     [detection_boxes, detection_scores, detection_classes, num_detections],
                     feed_dict={image_tensor: image_np_expanded})
 
-                if WRITE_DET_DIR and not cap:
-                    # tdoo: create folder
-                    save_dir = os.path.join(entry['folder'], WRITE_DET_DIR)
-
-                    if not os.path.exists(save_dir):
-                        os.mkdir(save_dir, 0755)
-
-                    write_detection(save_dir, entry, np.squeeze(boxes), np.squeeze(scores), 0.005)
-
-                # boxes = np.reshape(boxes, (len(boxes)/4, 4))
-
                 patches = np.zeros((8, LANDMARK_INPUT_SIZE, LANDMARK_INPUT_SIZE, 3), dtype=np.float32)
 
                 boxes = np.squeeze(boxes)
@@ -276,13 +283,10 @@ if __name__ == '__main__':
                 classes = np.squeeze(classes).astype(np.int32)
 
                 HEIGHT, WIDTH, _ = image.shape
-                scale = 0.5
-
                 crop_boxes = []
-                SCORE_TH = 0.5
 
                 for i, box in enumerate(boxes):
-                    if scores[i] < SCORE_TH:
+                    if scores[i] < FACE_SCORE_THRESHOLD:
                         continue
 
                     l, t, r, b = int(box[1] * WIDTH), int(box[0] * HEIGHT), int(box[3] * WIDTH), int(box[2] * HEIGHT)
@@ -296,9 +300,10 @@ if __name__ == '__main__':
                         print(box, '[%d, %d, %d, %d] w/ %.2f' %(l, t, r, b, scores[i]))
                         continue
 
+                    # make crop-box centered and expanded
                     cx, cy = (l + r) / 2.0, (b + t) / 2.0
                     w, h = (r - l), (b - t)
-                    ts = max(w, h) * 1.1 / 2.0              # expand 20%
+                    ts = max(w, h) * 1.1 / 2.0              # expand 10%
 
                     l = int(min(max(0.0, cx - ts), WIDTH))
                     t = int(min(max(0.0, cy - ts), HEIGHT))
@@ -310,7 +315,7 @@ if __name__ == '__main__':
 
                 for i, box in enumerate(crop_boxes):
                     if landmark_estimator:
-                        if i < 8:
+                        if i < LANDMARK_BATCHSIZE:
                             l, t, r, b = box[0], box[1], box[2], box[3]
                             face = image[t:b, l:r, :]
 
@@ -322,7 +327,11 @@ if __name__ == '__main__':
                 if LANDMARK_CKPT_PATH:
                     landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
 
+                    face_landmarks = []
+
                     for i, box in enumerate(crop_boxes):
+                        face_landmarks.append({'face': box, 'landmark': landmarks[i]})
+
                         H, W = box[3]-box[1], box[2] - box[0]
                         for j in range(68):
                             if j not in [16, 21, 26, 41, 30, 47, 35, 59, 67]:
@@ -331,6 +340,13 @@ if __name__ == '__main__':
                                          (int(box[0] + (p1[0] * W) + 0.5), int(box[1] + (p1[1] * H) + 0.5)), (0, 0, 255), 1)
                         for p in landmarks[i]:
                             cv2.circle(image_draw, (int(box[0]+(p[0]*W)+0.5), int(box[1]+(p[1]*H)+0.5)), 2, (0, 255, 255))
+
+                    if FLAGS.write_txt_dir and not LIVE_FEED:
+                        save_dir = os.path.join(entry['folder'], WRITE_TXT_DIR)
+                        if not os.path.exists(save_dir):
+                            os.mkdir(save_dir, 0755)
+
+                        write_detection(save_dir, entry['basename'], face_landmarks)
 
                 cv2.imshow("image", image_draw)
 
@@ -377,8 +393,8 @@ if __name__ == '__main__':
 
     print('===== task finished: %s seconds ======', end_time-start_time)
 
-# python detect_face.py --checkpoint_dir=/Users/gglee/Data/1207_face/
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
-# python detect_face.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000
+# python detect_face_landmark.py --checkpoint_dir=/Users/gglee/Data/1207_face/
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000

@@ -13,9 +13,7 @@ tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train/0408',
 
 FLAGS = tf.app.flags.FLAGS
 
-def evaluate(ckpt_path, tfr_path):
-
-    # load train_setting
+def load_settings(ckpt_path):
     path_setting = os.path.join(os.path.dirname(ckpt_path), 'train_setting.txt')
     assert os.path.exists(path_setting) and os.path.isfile(
         path_setting), 'train_setting.txt not exist for [%s]' % ckpt_path
@@ -34,10 +32,22 @@ def evaluate(ckpt_path, tfr_path):
                 if bool(bn_val):
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
-                    # print(normalizer_fn, normalizer_params)
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
                 depth_multiplier = int(dm_val)
+
+    return {'normalizer_fn': normalizer_fn, 'normalizer_params': normalizer_params, 'depth_multiplier': depth_multiplier,
+            'is_color': is_color }
+
+
+def evaluate(ckpt_path, tfr_path):
+
+    # load train_setting
+    settings = load_settings(ckpt_path)
+    normalizer_fn = settings['normalizer_fn']
+    normalizer_params = settings['normalizer_params']
+    depth_multiplier = ['depth_multiplier']
+    is_color = settings['is_color']
 
     count_records = data.get_tfr_record_count(tfr_path)
     dataset = data.load_tfrecord(tfr_path, batch_size=64, num_parallel_calls=16, is_color=is_color)
