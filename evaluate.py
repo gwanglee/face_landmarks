@@ -29,12 +29,13 @@ def load_settings(ckpt_path):
                 _, is_color = l.split(':')
             if 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
-                if bool(bn_val):
+                if bn_val.strip() == 'True':
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
+                    print(bool(bn_val), bn_val, normalizer_fn, normalizer_params)
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
-                depth_multiplier = int(dm_val)
+                depth_multiplier = int(dm_val.strip())
 
     return {'normalizer_fn': normalizer_fn, 'normalizer_params': normalizer_params, 'depth_multiplier': depth_multiplier,
             'is_color': is_color }
@@ -46,8 +47,12 @@ def evaluate(ckpt_path, tfr_path):
     settings = load_settings(ckpt_path)
     normalizer_fn = settings['normalizer_fn']
     normalizer_params = settings['normalizer_params']
-    depth_multiplier = ['depth_multiplier']
+    depth_multiplier = settings['depth_multiplier']
     is_color = settings['is_color']
+
+    print('norm_fn:', normalizer_fn)
+    print('norm_param: ', normalizer_params)
+    print('depth_mul:', depth_multiplier)
 
     count_records = data.get_tfr_record_count(tfr_path)
     dataset = data.load_tfrecord(tfr_path, batch_size=64, num_parallel_calls=16, is_color=is_color)
@@ -61,7 +66,7 @@ def evaluate(ckpt_path, tfr_path):
 
     with tf.variable_scope('model') as scope:
         predicts, _ = net.lannet(image, is_training=False, depth_mul=depth_multiplier,
-                             normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
+                                 normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
 
     with tf.Session() as sess:
         init = [tf.initialize_all_variables(), iterator.initializer]
@@ -135,11 +140,15 @@ if __name__=='__main__':
         exit()
 
     with open(os.path.join(FLAGS.models_dir, 'eval.txt'), 'w') as wf:
+        dirs = []
         for d in os.listdir(FLAGS.models_dir):
             path = os.path.join(FLAGS.models_dir, d)
-            if not os.path.isdir(path):
-                continue
+            if os.path.isdir(path):
+                dirs.append(path)
 
+        dirs = sorted(dirs)
+
+        for path in dirs:
             files = []
             for f in os.listdir(path):
                 if f.endswith('.index'):

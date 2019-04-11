@@ -65,6 +65,11 @@ if __name__=='__main__':
         for i, sub in enumerate(subs):
             detections = read_detection(os.path.join(root, sub, os.path.splitext(f)[0] + '.txt'))
 
+            TEXT_HEIGHT = 20
+            TEXT_WIDTH = 150
+            cv2.rectangle(image, (0, i * TEXT_HEIGHT), (TEXT_WIDTH, (i + 1) * TEXT_HEIGHT), (0, 0, 0), -1)
+            cv2.putText(image, sub, (5, (i+1) * TEXT_HEIGHT - 3), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1.0, COLOR[i][0])
+
             for d in detections:
                 l, t, r, b = d['face']
                 cv2.rectangle(image, (l, t), (r, b), (255, 255, 255), 2)

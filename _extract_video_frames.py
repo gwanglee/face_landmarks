@@ -2,7 +2,7 @@ import os
 import cv2
 
 SRC_DIR='/Users/gglee/Data/Landmark/test_video'
-SRC_FILENAME='landmark_test.mov'
+SRC_FILENAME='natural.mp4'
 
 BASENAME = os.path.splitext(SRC_FILENAME)[0]
 DST_DIR=os.path.join(SRC_DIR, BASENAME)
