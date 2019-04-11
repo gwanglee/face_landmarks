@@ -32,7 +32,6 @@ def load_settings(ckpt_path):
                 if bn_val.strip() == 'True':
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
-                    print(bool(bn_val), bn_val, normalizer_fn, normalizer_params)
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
                 depth_multiplier = int(dm_val.strip())
@@ -49,10 +48,6 @@ def evaluate(ckpt_path, tfr_path):
     normalizer_params = settings['normalizer_params']
     depth_multiplier = settings['depth_multiplier']
     is_color = settings['is_color']
-
-    print('norm_fn:', normalizer_fn)
-    print('norm_param: ', normalizer_params)
-    print('depth_mul:', depth_multiplier)
 
     count_records = data.get_tfr_record_count(tfr_path)
     dataset = data.load_tfrecord(tfr_path, batch_size=64, num_parallel_calls=16, is_color=is_color)
@@ -160,7 +155,8 @@ if __name__=='__main__':
 
             largest = sorted(files, key=itemgetter('steps'), reverse=True)[0]['name']
 
-            ckpt2use = os.path.join(path, largest)
-            err = evaluate(ckpt2use, FLAGS.tfrecord)
-            print('eval err = %.2f on \'%s\' and \'%s\'' % (err, ckpt2use, FLAGS.tfrecord))
-            wf.write('%s\t%s\t%f\n' % (os.path.basename(path), largest, err))
+            with tf.Graph().as_default():
+                ckpt2use = os.path.join(path, largest)
+                err = evaluate(ckpt2use, FLAGS.tfrecord)
+                print('eval err = %.2f on \'%s\' and \'%s\'' % (err, ckpt2use, FLAGS.tfrecord))
+                wf.write('%s\t%s\t%f\n' % (os.path.basename(path), largest, err))
