@@ -20,24 +20,28 @@ def load_settings(ckpt_path):
 
     normalizer_fn = None
     normalizer_params = {}
-    depth_multiplier = 1
+    depth_multiplier = 1.0
+    depth_gamma = 1.0
     is_color = True
 
     with open(path_setting, 'r') as rf:
         for l in rf:
             if 'is_color' in l:
                 _, is_color = l.split(':')
-            if 'use_batch_norm' in l:
+            elif 'use_batch_norm' in l:
                 _, bn_val = l.split(':')
                 if bn_val.strip() == 'True':
                     normalizer_fn = slim.batch_norm
                     normalizer_params = {'is_training': False}
             elif 'depth_multiplier' in l:
                 _, dm_val = l.split(':')
-                depth_multiplier = int(dm_val.strip())
+                depth_multiplier = float(dm_val.strip())
+            elif 'depth_gamma' in l:
+                _, dg_val = l.split(':')
+                depth_gamma = float(dg_val.strip())
 
     return {'normalizer_fn': normalizer_fn, 'normalizer_params': normalizer_params, 'depth_multiplier': depth_multiplier,
-            'is_color': is_color }
+            'depth_gamma': depth_gamma, 'is_color': is_color }
 
 
 def evaluate(ckpt_path, tfr_path):

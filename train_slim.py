@@ -19,6 +19,7 @@ tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adag
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
 tf.app.flags.DEFINE_float('wing_eps', 2, 'eps for wing_loss')
+tf.app.flags.DEFINE_float('min_learning_rate', None, 'Minimum value of learning rate to use')
 
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
 tf.app.flags.DEFINE_float('rmsprop_momentum', 0.9, 'Momentum.')
@@ -41,7 +42,8 @@ tf.app.flags.DEFINE_float('regularizer_lambda', 0.004, 'Lambda for the regulariz
 tf.app.flags.DEFINE_float('regularizer_lambda_2', 0.004, 'Lambda for the regularization')
 
 tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
-tf.app.flags.DEFINE_integer('depth_multiplier', 4, '')
+tf.app.flags.DEFINE_float('depth_multiplier', 2.0, '')
+tf.app.flags.DEFINE_float('depth_gamma', 1.0, '')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -82,7 +84,8 @@ def _write_current_setting(train_path):
         if FLAGS.quantize_delay >= 0:
             wf.write('quantize_delay: %d\n' % FLAGS.quantize_delay)
 
-        wf.write('depth_multiplier: %d\n' % FLAGS.depth_multiplier)
+        wf.write('depth_multiplier: %f\n' % FLAGS.depth_multiplier)
+        wf.write('depth_gamma: %f\n' % FLAGS.depth_gamma)
 
 
 def _config_weights_regularizer(reg, scale, scale2=None):
@@ -390,9 +393,9 @@ if __name__=='__main__':
         with tf.variable_scope('model') as scope:
             intensor = tf.identity(image, 'input')
             predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params,
-                                        regularizer=regularizer, depth_mul=FLAGS.depth_multiplier)
+                                        regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
             val_pred, _ = net.lannet(val_imgs, is_training=False, normalizer_fn=norm_fn, normalizer_params=norm_params,
-                                     regularizer=regularizer, depth_mul=FLAGS.depth_multiplier)
+                                     regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
 
         loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
