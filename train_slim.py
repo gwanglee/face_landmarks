@@ -14,7 +14,7 @@ tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord'
 tf.app.flags.DEFINE_boolean('is_color', True, 'RGB or gray input')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
 
-tf.app.flags.DEFINE_string('loss', 'l1', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2, chain]')
+tf.app.flags.DEFINE_string('loss', 'l1', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2, chain, sqrt]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
@@ -155,8 +155,11 @@ def _config_loss_function(points, predictions):
         return euc_wing_loss(points, predictions, FLAGS.wing_w, FLAGS.wing_eps)
     elif FLAGS.loss == 'chain':
         return chain_loss(points, predictions)
+    elif FLAGS.loss == 'sqrt':
+        return sqrt_loss(points, predictions)
     else:
         raise ValueError('Could not recog. loss fn.')
+
 
 def chain_loss(landmarks, labels):
     with tf.name_scope('chain_loss'):
@@ -293,6 +296,13 @@ def pointwise_l2_loss(landmarks, labels):
         return loss
 
 
+def sqrt_loss(landmarks, predicts):
+    with tf.name_scope('sqrt_loss'):
+        loss = tf.reduce_mean(tf.sqrt(tf.abs(landmarks - predicts)))
+        tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
+        return loss
+
+
 def l1_loss(landmarks, predicts):
     with tf.name_scope('l1_loss'):
         loss = tf.reduce_mean(tf.abs(tf.subtract(landmarks, predicts)))
@@ -306,21 +316,6 @@ def l2_loss(landmarks, predicts):
         loss = tf.reduce_mean(tf.multiply(diff, diff))
         tf.losses.add_loss(loss, tf.GraphKeys.LOSSES)
         return loss
-
-# # fixme: _parse_func is in diff files. also, add augmentation
-# def _parse_function(example_proto):
-#     CH = 3 if FLAGS.is_color else 1
-#
-#     features = {"image": tf.FixedLenFeature([56*56*CH], tf.string),
-#                 "points": tf.FixedLenFeature([68*2], tf.float32)}
-#     parsed_features = tf.parse_single_example(example_proto, features)
-#
-#     img = tf.reshape(tf.decode_raw(parsed_features["image"], tf.uint8), (56, 56, CH))
-#     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*2/255.0 -1.0
-#
-#     pts = tf.reshape(tf.cast(parsed_features['points'], tf.float32), (136, ))
-#     print('parsing >> ', normed, pts)
-#     return normed, pts
 
 
 def train_step_fn(sess, train_op, global_step, train_step_kwargs):
@@ -399,7 +394,6 @@ if __name__=='__main__':
 
         loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
-        # val_loss = tf.losses.absolute_difference(val_pts, val_pred, loss_collection='validation')
         val_loss = l2_loss(val_pts, val_pred)
 
         global_step = slim.create_global_step()

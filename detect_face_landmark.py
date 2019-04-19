@@ -163,8 +163,12 @@ if __name__ == '__main__':
         NORM_PARAM = landmark_settings['normalizer_params']
         LANDMARK_BATCHSIZE = 8
 
-        landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH, depth_multiplier=DEPTH_MULTIPLIER, depth_multiplier=DEPTH_GAMMA,
-                                              normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM, batch_size=LANDMARK_BATCHSIZE)
+        print(DEPTH_GAMMA, DEPTH_MULTIPLIER)
+
+        landmark_estimator = infer.Classifier(LANDMARK_INPUT_SIZE, LANDMARK_CKPT_PATH,
+                                              depth_multiplier=DEPTH_MULTIPLIER, depth_gamma=DEPTH_GAMMA,
+                                              normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM,
+                                              batch_size=LANDMARK_BATCHSIZE)
 
     # set sources
     image_to_test = []

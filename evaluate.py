@@ -51,6 +51,7 @@ def evaluate(ckpt_path, tfr_path):
     normalizer_fn = settings['normalizer_fn']
     normalizer_params = settings['normalizer_params']
     depth_multiplier = settings['depth_multiplier']
+    depth_gamma = settings['depth_gamma']
     is_color = settings['is_color']
 
     count_records = data.get_tfr_record_count(tfr_path)
@@ -64,7 +65,8 @@ def evaluate(ckpt_path, tfr_path):
     image, points = iterator.get_next()
 
     with tf.variable_scope('model') as scope:
-        predicts, _ = net.lannet(image, is_training=False, depth_mul=depth_multiplier,
+        predicts, _ = net.lannet(image, is_training=False,
+                                 depth_mul=depth_multiplier, depth_gamma=depth_gamma,
                                  normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
 
     with tf.Session() as sess:
@@ -76,58 +78,76 @@ def evaluate(ckpt_path, tfr_path):
 
         errs = []
 
-        for i in range(NUM_ITER):
-            img, pts, prs = sess.run([image, points, predicts])
-            img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
-            mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)
+        with open(os.path.join(os.path.dirname(ckpt_path), 'err.csv'), 'w') as ewf:
+            for i in range(68):
+                ewf.write('x%d, y%d' % (i, i))
+                if i < 68-1:
+                    ewf.write(', ')
+                else:
+                    ewf.write('\n')
 
-            PX = 28
-            PY = 10
-            FONT_SCALE = 0.85
+            for i in range(NUM_ITER):
+                img, pts, prs = sess.run([image, points, predicts])
+                img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
+                mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)
 
-            for y in range(BATCH_WIDTH):
-                for x in range(BATCH_WIDTH):
-                    pos = y*BATCH_WIDTH + x
-                    cur_img = img[pos, :, :, :]
-                    if not is_color:
-                        cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
+                # print(pts.shape, prs.shape)
+                perr = np.subtract(pts, prs)
+                for pes in perr:
+                    for j, pe in enumerate(pes):
+                        ewf.write('%f' % abs(pe))
+                        if j < len(pes)-1:
+                            ewf.write(', ')
+                        else:
+                            ewf.write('\n')
 
-                    cur_pts = pts[pos]
-                    cur_prs = prs[pos]
-                    # print(cur_pts)
-                    # print(cur_prs)
+                PX = 28
+                PY = 10
+                FONT_SCALE = 0.85
 
-                    diff = cur_pts - cur_prs
-                    err = 0
+                for y in range(BATCH_WIDTH):
+                    for x in range(BATCH_WIDTH):
+                        pos = y*BATCH_WIDTH + x
+                        cur_img = img[pos, :, :, :]
+                        if not is_color:
+                            cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
 
-                    for p in range(68):
-                        ix, iy = p * 2, p * 2 + 1
+                        cur_pts = pts[pos]
+                        cur_prs = prs[pos]
+                        # print(cur_pts)
+                        # print(cur_prs)
 
-                        px = int(cur_pts[ix]*56.0+0.5)
-                        py = int(cur_pts[iy]*56.0+0.5)
-                        cv2.rectangle(cur_img, (px-1, py-1), (px+1, py+1), (0, 0, 255), 1)
+                        diff = cur_pts - cur_prs
+                        err = 0
 
-                        # px = int(cur_prs[ix] * 28 + 28)
-                        # py = int(cur_prs[iy] * 28 + 28)
-                        px = int(cur_prs[ix] * 56 + 0.5)
-                        py = int(cur_prs[iy] * 56 + 0.5)
-                        cv2.line(cur_img, (px - 1, py + 1), (px + 1, py - 1), (0, 255, 0), 1)
-                        cv2.line(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 255, 0), 1)
-                        e = np.sqrt(diff[ix]*diff[ix] + diff[iy]*diff[iy])
-                        err += e
+                        for p in range(68):
+                            ix, iy = p * 2, p * 2 + 1
 
-                    err /= 68
-                    errs.append(err)
-                    cv2.putText(cur_img, '%.2f' % err, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
-                    cv2.putText(cur_img, '%.2f' % err, (PX-1, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
+                            px = int(cur_pts[ix]*56.0+0.5)
+                            py = int(cur_pts[iy]*56.0+0.5)
+                            cv2.rectangle(cur_img, (px-1, py-1), (px+1, py+1), (0, 0, 255), 1)
 
-                    mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
+                            # px = int(cur_prs[ix] * 28 + 28)
+                            # py = int(cur_prs[iy] * 28 + 28)
+                            px = int(cur_prs[ix] * 56 + 0.5)
+                            py = int(cur_prs[iy] * 56 + 0.5)
+                            cv2.line(cur_img, (px - 1, py + 1), (px + 1, py - 1), (0, 255, 0), 1)
+                            cv2.line(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 255, 0), 1)
+                            e = np.sqrt(diff[ix]*diff[ix] + diff[iy]*diff[iy])
+                            err += e
 
-            err_total = np.mean(errs)
-            cv2.imshow("mosaic", mosaic)
-            img_save_path =('%s_%03d.jpg' % (ckpt_path, i))
-            cv2.imwrite(img_save_path, mosaic)
-            cv2.waitKey(1000)
+                        err /= 68
+                        errs.append(err)
+                        cv2.putText(cur_img, '%.2f' % err, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+                        cv2.putText(cur_img, '%.2f' % err, (PX-1, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
+
+                        mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
+
+                err_total = np.mean(errs)
+                cv2.imshow("mosaic", mosaic)
+                img_save_path =('%s_%03d.jpg' % (ckpt_path, i))
+                cv2.imwrite(img_save_path, mosaic)
+                cv2.waitKey(1000)
 
         return err_total
 
@@ -162,5 +182,5 @@ if __name__=='__main__':
             with tf.Graph().as_default():
                 ckpt2use = os.path.join(path, largest)
                 err = evaluate(ckpt2use, FLAGS.tfrecord)
-                print('eval err = %.2f on \'%s\' and \'%s\'' % (err, ckpt2use, FLAGS.tfrecord))
+                print('eval err = %.4f on \'%s\' and \'%s\'' % (err*100, ckpt2use, FLAGS.tfrecord))
                 wf.write('%s\t%s\t%f\n' % (os.path.basename(path), largest, err))

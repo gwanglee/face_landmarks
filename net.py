@@ -52,5 +52,5 @@ def arg_scope(weight_decay=0.0005):
       [slim.conv2d, slim.fully_connected],
       weights_regularizer=slim.l2_regularizer(weight_decay),
       weights_initializer=tf.truncated_normal_initializer(stddev=0.01),
-      activation_fn=tf.nn.relu6) as sc:
+      activation_fn=tf.nn.relu) as sc:
     return sc

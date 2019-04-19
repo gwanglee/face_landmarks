@@ -9,7 +9,7 @@ import net
 slim = tf.contrib.slim
 
 class Classifier(object):
-    def __init__(self, input_size, model_path, depth_multiplier=4, normalizer_fn=None, normalizer_params={}, batch_size=8):
+    def __init__(self, input_size, model_path, depth_multiplier=4.0, depth_gamma=1.0, normalizer_fn=None, normalizer_params={}, batch_size=8):
         self.input_size = input_size
         self.batch_size = batch_size
 
@@ -23,7 +23,7 @@ class Classifier(object):
             with tf.variable_scope('model') as scope:
                 self.landmarks, _ = net.lannet(self.images_pholder, is_training=False,
                                                normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
-                                               depth_mul=depth_multiplier)
+                                               depth_mul=depth_multiplier, depth_gamma=depth_gamma)
 
             saver = tf.train.Saver()
             saver.restore(self.sess, model_path)
