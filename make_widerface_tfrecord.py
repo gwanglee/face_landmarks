@@ -12,7 +12,7 @@ Converts wider face detection dataset to TFRecords with a standard format allowi
     wider_face_train.tfrecord and wider_face_val.tfrecord
 
 Example usage:
-    python object_detection/dataset_tools/create_widerface_tfrecord.py \
+    python object_detection/dataset_tools/make_widerface_tfrecord.py \
         --data_dir=/dataset/root/wider_face \
         --output_path=/where/to/write/tfrecords \
         --label_map_path=data/face_detection_label_map.pbtxt
@@ -34,6 +34,7 @@ import cv2
 from random import shuffle
 import tensorflow as tf
 import PIL.Image
+import numpy as np
 
 import widerface_explorer
 
@@ -46,12 +47,10 @@ tf.app.flags.DEFINE_string('image_dir', '', 'Location of directory directory tha
                            'test images subfolders')
 tf.app.flags.DEFINE_string('gt_path', '', 'Location of ground truth text file')
 tf.app.flags.DEFINE_string('output_path', '', 'Filepath where resulting .tfrecord will be saved')
-#tf.app.flags.DEFINE_string('label_map_path', 'data/face_detection_label_map.pbtxt',    #assume we have only one class (1:face)
-#                           'Path to label map proto.')
 
 FLAGS = tf.app.flags.FLAGS
 
-def prepare_example(data, label_map_dict):
+def prepare_example(data):
     """Make a data input to a tensorflow input example.
 
     Args:
@@ -175,6 +174,7 @@ def prepare_example(data, label_map_dict):
     #     cv2.imshow('masked', image)
     #     cv2.waitKey(1)
 
+
 def write_tfrecord(image_path, gt_path, tfrecord_path):
     writer = tf.python_io.TFRecordWriter(tfrecord_path)
 
@@ -186,7 +186,7 @@ def write_tfrecord(image_path, gt_path, tfrecord_path):
     for i in idx:
         data = wdb.get_annos_by_image_index(i)
 
-        example = prepare_example(data, None)
+        example = prepare_example(data)
         if example is not None:
             writer.write(example.SerializeToString())
 
@@ -195,15 +195,37 @@ def write_tfrecord(image_path, gt_path, tfrecord_path):
 
     writer.close()
 
+
+def integrity_check(tfr_path):
+    itr = tf.python_io.tf_record_iterator(path=tfr_path)
+    cnt = 0
+
+    with tf.Session() as sess:
+        for r in itr:
+            example = tf.train.Example()
+            example.ParseFromString(r)
+
+            jpg = tf.decode_raw(example.features.feature['image/encoded'].bytes_list.value[0], tf.uint8)
+            jpg_ = sess.run(jpg)
+
+            print('[%d] %s' % (cnt, example.features.feature['image/filename']))
+
+            decoded = cv2.imdecode(jpg_, -1)
+            cv2.imshow('image', decoded)
+            cv2.waitKey(1)
+
+
 def main(_):
     IMAGE_DIR = FLAGS.image_dir
     GT_PATH = FLAGS.gt_path
     OUTPUT_PATH = FLAGS.output_path
 
-    write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH)
+    # write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH)
+
+    integrity_check(OUTPUT_PATH)
     
 if __name__ == '__main__':
     tf.app.run()
 
 # run example
-#python create_widerface_tfrecord.py --image_dir=/Users/gglee/Data/WiderRefine/train_random_150 --output_path=/Users/gglee/Data/WiderRefine/train_random_150/train_random_150.tfrecord --gt_path=/Users/gglee/Data/WiderRefine/train_random_150/wider_refine_train_gt.txt
+#python make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/WiderRefine/train_random_150 --output_path=/Users/gglee/Data/WiderRefine/train_random_150/train_random_150.tfrecord --gt_path=/Users/gglee/Data/WiderRefine/train_random_150/wider_refine_train_gt.txt

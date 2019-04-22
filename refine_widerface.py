@@ -52,14 +52,32 @@ tf.app.flags.DEFINE_float('min_rel_size', 0.06, 'ignore faces small than min_rel
 
 FLAGS = tf.app.flags.FLAGS
 
-MIN_FRAME_SIZE = 200
+MIN_FRAME_SIZE = 240
+
 
 def find_small_and_large_faces(annos, threshold):
+    '''
+    return faces smaller than and larger than a given threshold
+    :param annos:
+    :param threshold: because we crop from the original image, threshold is in pixels
+    :return:
+    '''
+
     larges = filter(lambda x: x['w'] >= threshold, annos)
     smalls = filter(lambda x: 10 < x['w'] < threshold, annos)
     drop = filter(lambda x: x['w'] <= 10, annos)
 
     return smalls, larges
+
+
+def find_smallest_and_largest_faces(annos):
+    if len(annos) > 1:
+        sorted_ = sorted(annos, key=lambda k: k['w'])
+        return sorted_[0], sorted_[-1]
+    elif len(annos) == 1:
+        return annos[0], annos[0]
+    else:
+        return None, None
 
 
 def find_bounding_box(annos):
@@ -71,6 +89,12 @@ def find_bounding_box(annos):
 
 
 def check_overlap(bb1, bb2):
+    '''
+    check if two boxes overlap each other
+    :param bb1:
+    :param bb2:
+    :return:
+    '''
     if bb1['l'] > bb2['r'] or bb1['r'] < bb2['l']:
         return False
     if bb1['t'] > bb2['b'] or bb1['b'] < bb2['t']:
@@ -80,6 +104,12 @@ def check_overlap(bb1, bb2):
 
 
 def get_iou(bb1, bb2):
+    '''
+    compute iou of two boxes
+    :param bb1:
+    :param bb2:
+    :return:
+    '''
     if bb1['l'] > bb2['r'] or bb1['r'] < bb2['l']:
         return 0.0
     if bb1['t'] > bb2['b'] or bb1['b'] < bb2['t']:
@@ -94,11 +124,8 @@ def get_iou(bb1, bb2):
 
 
 def refine_annos(annos):
-    '''
-    remove annoations that not to be used: invalid and hard occlusion
-    :param annos:
-    :return:
-    '''
+    '''remove annoations that not to be used: labeld as invalid or hard occlusion'''
+
     survive = []
     drop = []
 
@@ -110,21 +137,16 @@ def refine_annos(annos):
     return survive, drop
 
 
-def draw_annos(image, annos, color, line_width):
-    for a in annos:
-        cv2.rectangle(image, (a['x'], a['y']), (a['x']+a['w'], a['y']+a['h']), color, line_width)
-
-
-def pick_valid_crop(frame_size, lb, sb):
+def pick_valid_crops(frame_size, lb, sb):
     '''
-    large boxes 는 절대크기가 충분히 큰 box들. small boxes는 절대크기가 작아 원본 crop해도 사용이 불가
+    large boxes 는 절대크기가 충분히 큰 box들. small boxes는 절대크기가 작아 원본 crop 해도 사용이 불가
     large boxes 를 감싸면서 small box는 포함하지 않는 영역의 list를 리턴한다
 
     how it works? large boxes 가운데 두 개를 고른다. 두 box의 bounding box 내에 small box가 없으면 사용할 수 있는 crop 임
 
     :param frame_size: (W, H)
-    :param lb:
-    :param sb:
+    :param lb: large_boxes
+    :param sb: small_boxes
     :return:
     '''
     res = []
@@ -153,9 +175,9 @@ def pick_valid_crop(frame_size, lb, sb):
 
             if not overlap:     # bbox does not overlap with sb -> safe to use -> expand it until it meet any s in sb
                 # expand width first
-                lmost = sorted(filter(lambda s: s['r'] < bbox['l'] and s['b'] > bbox['t'] and s['t'] < bbox['b'], sb),
+                lmost = sorted(filter(lambda s: s['r'] <= bbox['l'] and s['b'] > bbox['t'] and s['t'] < bbox['b'], sb),
                                key=itemgetter('r'), reverse=True)
-                rmost = sorted(filter(lambda s: s['l'] > bbox['r'] and s['b'] > bbox['t'] and s['t'] < bbox['b'], sb),
+                rmost = sorted(filter(lambda s: s['l'] >= bbox['r'] and s['b'] > bbox['t'] and s['t'] < bbox['b'], sb),
                                key=itemgetter('l'))
                 lmost = lmost[0] if lmost else frame
                 rmost = rmost[0] if rmost else frame
@@ -170,7 +192,7 @@ def pick_valid_crop(frame_size, lb, sb):
 
                 out_box = {'l': lmost['r'], 't': tmost['b'], 'r': rmost['l'], 'b': bmost['t']}
 
-                obh, obw = out_box['b'] - out_box['t'], out_box['r'] - out_box['l']
+                # obh, obw = out_box['b'] - out_box['t'], out_box['r'] - out_box['l']
 
                 # if obh > obw:
                 #     cy = int((out_box['b'] + out_box['t']) / 2)
@@ -181,6 +203,10 @@ def pick_valid_crop(frame_size, lb, sb):
 
                 MAX_TRY = 256
                 ARTH = 1.5
+
+                MIN_GAP = max(5, frame_size[0] * 0.01)
+                if abs(out_box['l'] - bbox['l']) <  MIN_GAP or abs(out_box['t'] - bbox['t']) < MIN_GAP or abs(out_box['r'] - bbox['r']) < MIN_GAP or abs(out_box['b'] - bbox['b']) < MIN_GAP:
+                    continue
 
                 # out_box와 bbox 사이의 box를 random search
                 if i == j:
@@ -194,9 +220,13 @@ def pick_valid_crop(frame_size, lb, sb):
 
                     for t in range(MAX_TRY):
                         rl = out_box['l'] if out_box['l'] == bbox['l'] else randrange(out_box['l'], bbox['l'])
+                                                                                      #int(out_box['l']*0.1+bbox['l']*0.9))
                         rt = out_box['t'] if out_box['t'] == bbox['t'] else randrange(out_box['t'], bbox['t'])
-                        rr = out_box['r'] if out_box['r'] == bbox['r'] else randrange(bbox['r'], out_box['r'])
-                        rb = out_box['b'] if out_box['b'] == bbox['b'] else randrange(bbox['b'], out_box['b'])
+                                                                                      #int(out_box['t']*0.1+bbox['t']*0.9))
+                        rr = out_box['r'] if out_box['r'] == bbox['r'] else randrange(#int(bbox['r']*0.9+out_box['r']*0.1),
+                                                                                      bbox['r'], out_box['r'])
+                        rb = out_box['b'] if out_box['b'] == bbox['b'] else randrange(int(bbox['b']*0.3+out_box['b']*0.7),
+                                                                                      out_box['b'])
 
                         rw = rr - rl
                         rh = rb - rt
@@ -286,14 +316,19 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, R
             crop_saved = 0
             MAX_OUTPUT_PER_IMAGE = 6
 
-            annos, invannos = refine_annos(data['annos'])       # remove invalid and heavily occluded faces
+            annos, invannos = refine_annos(data['annos'])               # remove invalid and heavily occluded faces
             small, large = find_small_and_large_faces(annos, ABSTH)     # find faces smaller than and larger than ABSTH
+            smallest, largest = find_smallest_and_largest_faces(annos)
+
+            AS_ORIGINAL = True if smallest and float(smallest['w']) / max(H, W) > 0.0625 else False      # use the original image too
+            AS_BACKGROUND = True if largest and float(largest['w']) / max(H, W) < 0.02 else False   # all faces are very small
 
             def draw_box(image, anno, color, line_width=1):
                 cv2.rectangle(image, (anno['l'], anno['t']), (anno['r'], anno['b']), color, line_width)
 
             if DEBUG:       # draw all annotations
                 image_boxes = deepcopy(image)
+
                 for ia in invannos:
                     draw_box(image_boxes, ia, (0, 0, 0), 2)
                 for l in large:
@@ -302,8 +337,14 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, R
                     draw_box(image_boxes, s, (0, 0, 255), 1)
                 cv2.imshow('invalid_small_large', image_boxes)
 
+                if AS_ORIGINAL:
+                    cv2.imshow('original', image)
+                if AS_BACKGROUND:
+                    cv2.imshow('background', image)
+
+
             if len(large) > 0:
-                crops = pick_valid_crop((W, H), large, small)
+                crops = pick_valid_crops((W, H), large, small)
 
                 if DEBUG:   # draw crop candidates with valid boxes
                     image_crops = deepcopy(image)
@@ -314,6 +355,32 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, R
                     for l in large:
                         draw_box(image_crops, l, (0, 255, 0), 1)
                     cv2.imshow('crop_boxes', image_crops)
+
+                if AS_BACKGROUND or AS_ORIGINAL:
+                    dst_path = image_path.replace(db_path, write_db_path)
+                    dir_path = os.path.dirname(dst_path)
+
+                    if not os.path.exists(dir_path):
+                        os.makedirs(dir_path)
+
+                    cv2.imwrite(dst_path, image)
+
+                    filename = os.path.basename(dst_path)
+                    dirname = os.path.dirname(dst_path).rsplit('/', 1)[1]
+
+                    if AS_ORIGINAL:
+                        wgt.write("%s\n" % (os.path.join(dirname, filename)))
+
+                    # if AS_BACKGROUND:
+                    #     wgt.write("%d\n" % 0)
+                    # else:
+                        wgt.write("%d\n" % (len(annos)))
+                        for a in annos:
+                            wgt.write(("%d %d %d %d %d %d %d %d %d %d\n") % ( \
+                                a['x'], a['y'], a['w'], a['h'], \
+                                a['blur'], a['expression'], a['illumination'], \
+                                a['invalid'], a['occlusion'], a['pose']))
+
 
                 for n, c in enumerate(crops):
                     # make new annotations w.r.t crops
