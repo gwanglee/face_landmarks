@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 TFR_PATH="/youjin/face_landmark/data"
 TRAIN_PATH="/youjin/face_landmark/train"
-TRAIN_NAME="0417_gpu2"
+TRAIN_NAME="0424_gpu2"
 
 TRAIN_56="0424.56.train.tfrecord"
 VAL_56="0424.56.val.tfrecord"
@@ -30,7 +30,7 @@ REGULARIZER="l2"
 REG_LAMBDA=0.0005
 
 TRAIN=$TRAIN_56
-VAL=$VAL56
+VAL=$VAL_56
 
 EXP_NAME="x201"
 DEPTH_MULTIPLIER=1
