@@ -358,13 +358,13 @@ if __name__=='__main__':
         train_data_count = data.get_tfr_record_count(TRAIN_TFR_PATH)
         print('%d samples in training data' % train_data_count)
 
-        train_data = data.load_tfrecord(TRAIN_TFR_PATH, FLAGS.input_size, FLAGS.batch_size, num_parallel_calls=16,
-                                        is_color=FLAGS.is_color, shuffle=True, augment=True)
+        train_data = data.load_tfrecord(TRAIN_TFR_PATH, input_size=FLAGS.input_size, batch_size=FLAGS.batch_size,
+                                        num_parallel_calls=16, is_color=FLAGS.is_color, shuffle=True, augment=True)
         train_data_itr = train_data.make_initializable_iterator()
 
         val_data_count = data.get_tfr_record_count(VAL_TFR_PATH)
-        val_data = data.load_tfrecord(VAL_TFR_PATH, input_size=FLAGS.input_size, batch_size=FLAGS.batch_size, num_parallel_calls=16,
-                                      is_color=FLAGS.is_color, shuffle=False, augment=False)
+        val_data = data.load_tfrecord(VAL_TFR_PATH, input_size=FLAGS.input_size, batch_size=FLAGS.batch_size,
+                                      num_parallel_calls=16, is_color=FLAGS.is_color, shuffle=False, augment=False)
         val_data_itr = val_data.make_initializable_iterator()
 
         image, points = train_data_itr.get_next()
