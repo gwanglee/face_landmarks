@@ -196,7 +196,6 @@ def write_tfrecord(image_path, gt_path, tfrecord_path):
 def integrity_check(tfr_path):
     itr = tf.python_io.tf_record_iterator(path=tfr_path)
     cnt = 0
-
     with tf.Session() as sess:
         for r in itr:
             example = tf.train.Example()
@@ -205,11 +204,11 @@ def integrity_check(tfr_path):
             jpg = tf.decode_raw(example.features.feature['image/encoded'].bytes_list.value[0], tf.uint8)
             jpg_ = sess.run(jpg)
 
-            print('[%d] %s' % (cnt, example.features.feature['image/filename']))
-
+            print('[%d] %s' % (cnt, example.features.feature['image/filename'].bytes_list.value[0]))
             decoded = cv2.imdecode(jpg_, -1)
-            cv2.imshow('image', decoded)
-            cv2.waitKey(1)
+            # cv2.imshow('image', decoded)
+            # cv2.waitKey(1)
+            cnt += 1
 
 
 def main(_):

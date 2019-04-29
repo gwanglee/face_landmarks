@@ -13,6 +13,7 @@ tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrec
 tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
 tf.app.flags.DEFINE_boolean('is_color', True, 'RGB or gray input')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
+tf.app.flags.DEFINE_integer('input_size', 56, 'N x N for the network')
 
 tf.app.flags.DEFINE_string('loss', 'l1', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2, chain, sqrt]')
 tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
@@ -56,6 +57,7 @@ def _write_current_setting(train_path):
         wf.write('%s\n' % train_path)
         wf.write('train_tfr: %s\n' % FLAGS.train_tfr)
         wf.write('is_color: %r\n' % FLAGS.is_color)
+        wf.write('input_size: %d\n' % FLAGS.input_size)
 
         wf.write('optimizer: %s\n' % FLAGS.optimizer)
         wf.write('loss: %s\n' % FLAGS.loss)
@@ -356,13 +358,13 @@ if __name__=='__main__':
         train_data_count = data.get_tfr_record_count(TRAIN_TFR_PATH)
         print('%d samples in training data' % train_data_count)
 
-        train_data = data.load_tfrecord(TRAIN_TFR_PATH, 56, FLAGS.batch_size, num_parallel_calls=16,
-                                        is_color=FLAGS.is_color, shuffle=True, augment=True)
+        train_data = data.load_tfrecord(TRAIN_TFR_PATH, input_size=FLAGS.input_size, batch_size=FLAGS.batch_size,
+                                        num_parallel_calls=16, is_color=FLAGS.is_color, shuffle=True, augment=True)
         train_data_itr = train_data.make_initializable_iterator()
 
         val_data_count = data.get_tfr_record_count(VAL_TFR_PATH)
-        val_data = data.load_tfrecord(VAL_TFR_PATH, input_size=56, batch_size=FLAGS.batch_size, num_parallel_calls=16,
-                                      is_color=FLAGS.is_color, shuffle=False, augment=False)
+        val_data = data.load_tfrecord(VAL_TFR_PATH, input_size=FLAGS.input_size, batch_size=FLAGS.batch_size,
+                                      num_parallel_calls=16, is_color=FLAGS.is_color, shuffle=False, augment=False)
         val_data_itr = val_data.make_initializable_iterator()
 
         image, points = train_data_itr.get_next()
