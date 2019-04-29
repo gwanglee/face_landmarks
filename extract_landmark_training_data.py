@@ -6,7 +6,6 @@ from face_detector import Detector
 from random import random
 
 DEBUG = True
-PATCH_SIZE = 56
 
 MIN_CONF = 0.3
 MIN_OVERLAP = 0.3
@@ -14,25 +13,27 @@ EXTEND = True
 EXTEND_RATIO = 0.1
 
 ROTATE = True
-MAX_ROTATE = 30
+MAX_ROTATE = 45
+DETECTOR_INPUT_SIZE = 128
 
 # todo: add jittering?
 
-WRITE_PATH = '/home/gglee/Data/Landmark/MPIE'
-RAND_FACTOR = 16.0
+WRITE_PATH = '/Users/gglee/Data/Landmark/export/0424'
+# RAND_FACTOR = 16.0
 
 IMAGES_DIR_PATHS = [
         # '/home/gglee/gglee/Data/Landmark/300W/01_Indoor',
         # '/Users/gglee/Data/Landmark/300W/02_Outdoor',
         # '/Users/gglee/Data/Landmark/menpo_train_release',
-        '/home/gglee/Data/Multi-Pie/landmark'
+        # '/home/gglee/Data/Multi-Pie/landmark'
         '/Users/gglee/Data/Landmark/300W/01_Indoor',
         '/Users/gglee/Data/Landmark/300W/02_Outdoor',
         '/Users/gglee/Data/Landmark/menpo_train_release',
         '/Users/gglee/Data/Landmark/mpie'
     ]
 
-FACE_DETECTOR_PATH = '/home/gglee/Data/TensorflowCheckpoints/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
+FACE_DETECTOR_PATH = '/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_128_v1/freeze/frozen_inference_graph.pb'
+# FACE_DETECTOR_PATH = '/home/gglee/Data/TensorflowCheckpoints/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
 
 def get_files(folder_path):
     '''
@@ -290,7 +291,7 @@ def get_rotated_image_and_points(image, points, angle):
 
 def detect_face(detector, image, threshold=0.1):
     H, W, _ = image.shape
-    resize2detect = cv2.cvtColor(cv2.resize(image, (160, 160)), cv2.COLOR_BGR2RGB)
+    resize2detect = cv2.cvtColor(cv2.resize(image, (DETECTOR_INPUT_SIZE, DETECTOR_INPUT_SIZE)), cv2.COLOR_BGR2RGB)
     imtensor = np.expand_dims(resize2detect, 0)
     boxes, scores = detector.detect(imtensor)
     detected = []
@@ -376,12 +377,14 @@ def get_box_to_crop(image, points):
 
 
 def save_training_data(image, points, crop_box, save_path, basename):
+
     cropped = image[int(crop_box['y']):int(crop_box['y'] + crop_box['h']),
               int(crop_box['x']):int(crop_box['x'] + crop_box['w']), :]
-    cropped = cv2.resize(cropped, (PATCH_SIZE, PATCH_SIZE))
 
-    arr = np.array(cropped).astype(dtype=np.uint8)
-    arr.tofile(os.path.join(save_path, basename + '.img'))
+    # arr = np.array(cropped).astype(dtype=np.uint8)
+    # arr.tofile(os.path.join(save_path, basename + '.img'))
+    cv2.imwrite(os.path.join(save_path, basename + '.png'), cropped)
+
 
     normed = normalize_points_with_rect(points, crop_box)
     pts = np.array(normed)
@@ -391,12 +394,13 @@ def save_training_data(image, points, crop_box, save_path, basename):
     cpts = np.array(cnormed)
     cpts.tofile(os.path.join(save_path, basename + '.cpts'))
 
-    w, h = PATCH_SIZE, PATCH_SIZE
-    for p in normed:
-        l, t, r, b = int(p[0] * w) - 1, int(p[1] * h) - 1, int(p[0] * w) + 1, int(p[1] * h) + 1
-        cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
+    # H, W = cropped.shape[0:2]
+    # for p in normed:
+    #     l, t, r, b = int(p[0] * W) - 1, int(p[1] * H) - 1, int(p[0] * W) + 1, int(p[1] * H) + 1
+    #     cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
+    #
+    # cv2.imwrite(os.path.join(WRITE_PATH, basename + '.jpg'), cropped)
 
-    cv2.imwrite(os.path.join(WRITE_PATH, basename + '.jpg'), cropped)
 
     if DEBUG and random() < 0.01:
         cv2.imshow('cropped', cropped)
@@ -434,8 +438,8 @@ if __name__ == '__main__':
         cnt_total += len(samples)
 
         for i, s in enumerate(samples):
-            if random() > 1/RAND_FACTOR:
-                continue
+            # if random() > 1/RAND_FACTOR:
+            #     continue
 
             print('%d: %s, %s' % (i, s[0], s[1]))
             image = cv2.imread(s[0], cv2.IMREAD_COLOR)

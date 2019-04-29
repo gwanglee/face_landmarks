@@ -353,7 +353,7 @@ if __name__ == '__main__':
 
                         write_detection(save_dir, entry['basename'], face_landmarks)
 
-                cv2.imshow("image", image_draw)
+                cv2.imshow("image", cv2.flip(image_draw, 1))
 
                 if video_writer.isOpened():
                     image_write = cv2.resize(image_draw, (WRITE_WIDTH, WRITE_HEIGHT))

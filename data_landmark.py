@@ -15,7 +15,9 @@ def _parse_function(example_proto, input_size=56, is_color=True, augment=False):
     if augment:
         img = tf.image.random_brightness(img, max_delta=0.5)
         img = tf.image.random_contrast(img, lower=0.2, upper=2.0)
-        img = tf.image.random_hue(img, max_delta=0.08)
+
+        if is_color:
+            img = tf.image.random_hue(img, max_delta=0.08)
 
     normed = tf.subtract(tf.multiply(tf.cast(img, tf.float32), 2.0 / 255.0), 1.0)   # x*(2.0/255.0) - 1.0 = (x - 127.5) / 127.5
 

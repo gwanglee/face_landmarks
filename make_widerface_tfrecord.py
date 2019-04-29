@@ -25,8 +25,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from shutil import copyfile
-
 import hashlib
 import io
 import sys
@@ -34,7 +32,6 @@ import cv2
 from random import shuffle
 import tensorflow as tf
 import PIL.Image
-import numpy as np
 
 import widerface_explorer
 
@@ -220,9 +217,8 @@ def main(_):
     GT_PATH = FLAGS.gt_path
     OUTPUT_PATH = FLAGS.output_path
 
-    # write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH)
-
-    integrity_check(OUTPUT_PATH)
+    write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH)
+    # integrity_check(OUTPUT_PATH)
     
 if __name__ == '__main__':
     tf.app.run()
