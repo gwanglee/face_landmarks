@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_string('output_image_dir', '', 'Where to store the split set
 tf.app.flags.DEFINE_string('output_gt_path', '', 'Ground truth txtfile path corresponds to'
                             'dataset in output_image_dir')
 tf.app.flags.DEFINE_integer('min_abs_size', 30, 'ignore faces smaller than min_size pixels')
-tf.app.flags.DEFINE_float('min_rel_size', 0.06, 'ignore faces small than min_rel_size * image_size')
+tf.app.flags.DEFINE_float('min_rel_size', 0.1, 'ignore faces small than min_rel_size * image_size')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -202,7 +202,7 @@ def pick_valid_crops(frame_size, lb, sb):
                 #         (bbox['b'] + out_box['b']) / 2)
 
                 MAX_TRY = 256
-                ARTH = 1.5
+                ARTH = 4/3
 
                 MIN_GAP = max(5, frame_size[0] * 0.01)
                 if abs(out_box['l'] - bbox['l']) <  MIN_GAP or abs(out_box['t'] - bbox['t']) < MIN_GAP or abs(out_box['r'] - bbox['r']) < MIN_GAP or abs(out_box['b'] - bbox['b']) < MIN_GAP:
@@ -231,10 +231,10 @@ def pick_valid_crops(frame_size, lb, sb):
                         rw = rr - rl
                         rh = rb - rt
                         curar = rw / rh
-                        curfr = cur_face_width / (rr-rl)
+                        curfr = cur_face_width / (rr-rl)    # face ratio: face_size / frame_size
 
                         if 1/ARTH < curar < ARTH:       # AR은 가로, 세로 모두 ARTH 이하이어야 함
-                            cur_box = {'l': rl, 't': rt, 'r': rr, 'b': rb, 'fr':curfr}
+                            cur_box = {'l': rl, 't': rt, 'r': rr, 'b': rb, 'fr': curfr}
                             if min(rr-rl, rb-rt) > MIN_FRAME_SIZE and not on_the_border(cur_box, lb):
                                 res.append(cur_box)
 
@@ -248,7 +248,7 @@ def pick_valid_crops(frame_size, lb, sb):
             # res = filter(lambda r: not (1/1.2 < (r['r']-r['b']) / (res[sel]['r']-res[sel]['l']) < 1.2), res)
             # res = filter(lambda r: get_iou(r, res[sel]) < 0.3, res)
             # res = filter(lambda r: not (1 / 1.2 < (r['r'] - r['l']) / (res[sel]['r'] - res[sel]['l']) < 1.2), res)
-            res = filter(lambda  r: not (1/2.0 < r['fr']/res[sel]['fr'] < 2.0), res)
+            res = filter(lambda  r: not (1/1.5 < r['fr']/res[sel]['fr'] < 1.5), res)
             # res.remove(res[sel])
 
         return pick
@@ -320,8 +320,9 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, ABSTH, R
             small, large = find_small_and_large_faces(annos, ABSTH)     # find faces smaller than and larger than ABSTH
             smallest, largest = find_smallest_and_largest_faces(annos)
 
-            AS_ORIGINAL = True if smallest and float(smallest['w']) / max(H, W) > 0.0625 else False      # use the original image too
-            AS_BACKGROUND = True if largest and float(largest['w']) / max(H, W) < 0.02 else False   # all faces are very small
+            AS_ORIGINAL = True if smallest and float(smallest['w']) / W >= 0.1 and H <= W <= H*1.4 else False      # use the original image too
+            AS_BACKGROUND = True if largest and float(largest['w']) / W < 0.05 else False   # all faces are very small
+            AS_BACKGROUND = False
 
             def draw_box(image, anno, color, line_width=1):
                 cv2.rectangle(image, (anno['l'], anno['t']), (anno['r'], anno['b']), color, line_width)
