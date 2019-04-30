@@ -27,7 +27,7 @@ def prepare_data_list(inpath, pts_ext='.npts'):
 
     lists = []
     for l in os.listdir(inpath):
-        if l.endswith('img'):
+        if l.endswith('png'):
             pts_path = os.path.join(inpath, os.path.splitext(l)[0] + pts_ext)
             if os.path.exists(pts_path):
                 lists.append([os.path.join(inpath, l), pts_path])

@@ -25,8 +25,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from shutil import copyfile
-
 import hashlib
 import io
 import sys
