@@ -4,9 +4,9 @@ echo "Check if PYTHONPATH contains models/research:models/research/slim"
 echo "PYTHONPATH="$PYTHONPATH
 
 echo "Converting .ckpt to fronzen_graph"
-CKPT_PATH="/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5"
-CKPT_NAME="model.ckpt-299331"
-PIPELINE_CONFIG_NAME="ssd_mobilenet_v2_quantized_160_v5.config"
+CKPT_PATH="/Users/gglee/Data/TFModels/128/ssd_face_128_v10"
+CKPT_NAME="model.ckpt-560000"
+PIPELINE_CONFIG_NAME="ssd_face_128_v10.config"
 
 cd /Users/gglee/Develop/models/research
 
@@ -25,7 +25,7 @@ python object_detection/export_tflite_ssd_graph.py \
 
 toco --graph_def_file=$CKPT_PATH/tflite/tflite_graph.pb \
         --output_file=$CKPT_PATH/tflite/model.tflite \
-        --input_shapes=1,160,160,3 \
+        --input_shapes=1,128,128,3 \
         --input_arrays=normalized_input_image_tensor \
         --output_arrays='TFLite_Detection_PostProcess','TFLite_Detection_PostProcess:1','TFLite_Detection_PostProcess:2','TFLite_Detection_PostProcess:3' --inference_type=QUANTIZED_UINT8 \
         --mean_values=128 --std_dev_values=128 --changed_concat_input_ranges=false --allow_custom_ops

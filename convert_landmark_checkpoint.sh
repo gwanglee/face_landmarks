@@ -4,23 +4,21 @@ echo "Check if PYTHONPATH contains models/research:models/research/slim"
 echo "PYTHONPATH="$PYTHONPATH
 
 echo "Converting .ckpt to fronzen_graph"
-TRAINED_DIR="/Users/gglee/Data/Landmark/trained/x24_momentum_0.003_l2"
+TRAINED_DIR=/Users/gglee/Data/Landmark/train/0502/x009-l1.sgd.0.01.0.5.240000-l2.0.0005
 PBTXT_NAME="graph.pbtxt"
-CKPT_NAME="model.ckpt-300000"
+CKPT_NAME=model.ckpt-831795
 
 freeze_graph --input_graph=$TRAINED_DIR/$PBTXT_NAME --input_binary=false \
              --input_checkpoint=$TRAINED_DIR/$CKPT_NAME \
              --output_graph=$TRAINED_DIR/frozen.pb --output_node_names=model/lannet/fc7/BiasAdd
 
-mkdir $TRAINED_DIR/tflite
-
-tflite_convert --output_file=$TRAINED_DIR/tflite/landmark_float.tflite \
+tflite_convert --output_file=$TRAINED_DIR/landmark_float.tflite \
                --graph_def_file=$TRAINED_DIR/frozen.pb \
                --input_arrays=model/input \
                --output_arrays=model/lannet/fc7/BiasAdd \
                -—inference_type=FLOAT
 
-tflite_convert --output_file=$TRAINED_DIR/tflite/landmark_qint8.tflite \
+tflite_convert --output_file=$TRAINED_DIR/landmark_qint8.tflite \
                --graph_def_file=$TRAINED_DIR/frozen.pb \
                --input_arrays=model/input \
                --output_arrays=model/lannet/fc7/BiasAdd \

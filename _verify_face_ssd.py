@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 flags = tf.app.flags
-flags.DEFINE_string('face_checkpoint_dir', '/Users/gglee/Data/TFModels/ssd_face_128_v3/freeze',
+flags.DEFINE_string('face_checkpoint_dir', '/Users/gglee/Data/TFModels/128/ssd_face_128_v8/freeze',
                     'Directory containing checkpoints to evaluate, typically '
                     'set to `train_dir` used in the training job.')
 

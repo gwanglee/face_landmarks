@@ -5,6 +5,7 @@ import os
 import numpy as np
 import cv2
 from operator import itemgetter
+from copy import copy
 
 slim = tf.contrib.slim
 
@@ -44,6 +45,38 @@ def load_settings(ckpt_path):
             'depth_gamma': depth_gamma, 'is_color': is_color }
 
 
+def paste_mosaic_patch(mosaic, index, patch, points, predicts, error, size=8):
+    PX = 4
+    PY = 12
+    FONT_SCALE = 0.85
+
+    cur_img = copy(patch)
+    y = index / size
+    x = index % size
+
+    error = error*100
+
+    for p in range(68):
+        ix, iy = p * 2, p * 2 + 1
+
+        px = int(points[ix] * 56.0 + 0.5)
+        py = int(points[iy] * 56.0 + 0.5)
+        cv2.rectangle(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 0, 255), 1)
+
+        px = int(predicts[ix] * 56 + 0.5)
+        py = int(predicts[iy] * 56 + 0.5)
+        cv2.line(cur_img, (px - 1, py + 1), (px + 1, py - 1), (0, 255, 0), 1)
+        cv2.line(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 255, 0), 1)
+
+        cv2.putText(cur_img, '%.2f' % error, (PX-1, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+        cv2.putText(cur_img, '%.2f' % error, (PX+1, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+        cv2.putText(cur_img, '%.2f' % error, (PX, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+        cv2.putText(cur_img, '%.2f' % error, (PX, PY+1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
+        cv2.putText(cur_img, '%.2f' % error, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
+
+        mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
+
+
 def evaluate(ckpt_path, tfr_path):
 
     # load train_setting
@@ -61,6 +94,12 @@ def evaluate(ckpt_path, tfr_path):
     BATCH_WIDTH = 8
     BATCH_SIZE = BATCH_WIDTH*BATCH_WIDTH
     NUM_ITER = int(count_records/BATCH_SIZE)
+
+    KEEP_WIDTH = 10
+    MAX_KEEP = KEEP_WIDTH*KEEP_WIDTH
+
+    bests = []
+    worsts = []
 
     image, points = iterator.get_next()
 
@@ -91,7 +130,6 @@ def evaluate(ckpt_path, tfr_path):
                 img = np.asarray((img + 1.0)*255.0/2.0, dtype=np.uint8)
                 mosaic = np.zeros((56*BATCH_WIDTH, 56*BATCH_WIDTH, 3), dtype=np.uint8)
 
-                # print(pts.shape, prs.shape)
                 perr = np.subtract(pts, prs)
                 for pes in perr:
                     for j, pe in enumerate(pes):
@@ -100,10 +138,6 @@ def evaluate(ckpt_path, tfr_path):
                             ewf.write(', ')
                         else:
                             ewf.write('\n')
-
-                PX = 28
-                PY = 10
-                FONT_SCALE = 0.85
 
                 for y in range(BATCH_WIDTH):
                     for x in range(BATCH_WIDTH):
@@ -114,40 +148,56 @@ def evaluate(ckpt_path, tfr_path):
 
                         cur_pts = pts[pos]
                         cur_prs = prs[pos]
-                        # print(cur_pts)
-                        # print(cur_prs)
 
                         diff = cur_pts - cur_prs
                         err = 0
 
                         for p in range(68):
                             ix, iy = p * 2, p * 2 + 1
-
-                            px = int(cur_pts[ix]*56.0+0.5)
-                            py = int(cur_pts[iy]*56.0+0.5)
-                            cv2.rectangle(cur_img, (px-1, py-1), (px+1, py+1), (0, 0, 255), 1)
-
-                            # px = int(cur_prs[ix] * 28 + 28)
-                            # py = int(cur_prs[iy] * 28 + 28)
-                            px = int(cur_prs[ix] * 56 + 0.5)
-                            py = int(cur_prs[iy] * 56 + 0.5)
-                            cv2.line(cur_img, (px - 1, py + 1), (px + 1, py - 1), (0, 255, 0), 1)
-                            cv2.line(cur_img, (px - 1, py - 1), (px + 1, py + 1), (0, 255, 0), 1)
                             e = np.sqrt(diff[ix]*diff[ix] + diff[iy]*diff[iy])
                             err += e
 
                         err /= 68
+
+                        paste_mosaic_patch(mosaic, pos, cur_img, cur_pts, cur_prs, err)
                         errs.append(err)
-                        cv2.putText(cur_img, '%.2f' % err, (PX, PY), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (255, 255, 255))
-                        cv2.putText(cur_img, '%.2f' % err, (PX-1, PY-1), cv2.FONT_HERSHEY_PLAIN, FONT_SCALE, (0, 0, 0))
 
-                        mosaic[56*y:56*(y+1), 56*x:56*(x+1), :] = cur_img
+                        bests.append({'err': err, 'img': copy(cur_img), 'pts': copy(pts[pos]), 'prs': copy(prs[pos])})
+                        worsts.append({'err': err, 'img': copy(cur_img), 'pts': copy(pts[pos]), 'prs': copy(prs[pos])})
 
-                err_total = np.mean(errs)
+                        if len(bests) > MAX_KEEP:
+                            bests = sorted(bests, key=itemgetter('err'), reverse=False)[:MAX_KEEP]
+
+                        if len(worsts) > MAX_KEEP:
+                            worsts = sorted(worsts, key=itemgetter('err'), reverse=True)[:MAX_KEEP]
+
                 cv2.imshow("mosaic", mosaic)
                 img_save_path =('%s_%03d.jpg' % (ckpt_path, i))
                 cv2.imwrite(img_save_path, mosaic)
                 cv2.waitKey(1000)
+
+        err_total = np.mean(errs)
+        cv2.imshow("mosaic", mosaic)
+        img_save_path = ('%s_%03d.jpg' % (ckpt_path, i))
+        cv2.imwrite(img_save_path, mosaic)
+        cv2.waitKey(1000)
+
+        # make mosaic images for best & worst
+        img_bests = np.zeros((56 * KEEP_WIDTH, 56 * KEEP_WIDTH, 3), dtype=np.uint8)
+        img_worsts = np.zeros((56 * KEEP_WIDTH, 56 * KEEP_WIDTH, 3), dtype=np.uint8)
+
+        for i in range(MAX_KEEP):
+            paste_mosaic_patch(img_bests, i, bests[i]['img'], bests[i]['pts'], bests[i]['prs'], bests[i]['err'],
+                               KEEP_WIDTH)
+            paste_mosaic_patch(img_worsts, i, worsts[i]['img'], worsts[i]['pts'], worsts[i]['prs'], worsts[i]['err'],
+                               KEEP_WIDTH)
+
+        cv2.imshow('bests', img_bests)
+        cv2.imshow('worsts', img_worsts)
+        cv2.imwrite('%s_bests.jpg' % ckpt_path, img_bests)
+        cv2.imwrite('%s_worsts.jpg' % ckpt_path, img_worsts)
+
+        cv2.waitKey(100)
 
         return err_total
 

@@ -8,7 +8,7 @@ from operator import itemgetter
 
 slim = tf.contrib.slim
 
-tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train/bests', 'where trained models are stored')
+tf.app.flags.DEFINE_string('models_dir', '/Users/gglee/Data/Landmark/train/0508-2', 'where trained models are stored')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -63,7 +63,7 @@ def restore_and_save(ckpt_path):
     dir_path = os.path.dirname(ckpt_path)
     pb_path = os.path.join(dir_path, 'frozen_model.pb')
     tflite_float_path = os.path.join(dir_path, 'landmark.float.tflite')
-    tflite_qint8_path = os.path.join(dir_path, 'landmark.qint8.tflite')
+    # tflite_qint8_path = os.path.join(dir_path, 'landmark.qint8.tflite')
 
     with tf.Session() as sess:
 
@@ -109,44 +109,15 @@ def restore_and_save(ckpt_path):
     # open(tflite_qint8_path, "wb").write(tflite_quant_model)
     # print('>> %s' % tflite_qint8_path)
 
-    ## NOT WROKING
-    converter.inference_type = tf.contrib.lite.constants.QUANTIZED_UINT8
-    input_arrays = converter.get_input_arrays()
-    converter.quantized_input_stats = {input_arrays[0]: (128.0, 128.0)}
+    # ## NOT WROKING
+    # converter.inference_type = tf.contrib.lite.constants.QUANTIZED_UINT8
+    # input_arrays = converter.get_input_arrays()
+    # converter.quantized_input_stats = {input_arrays[0]: (128.0, 128.0)}
+    #
+    # tflite_model = converter.convert()
+    # open(tflite_qint8_path, "wb").write(tflite_model)
+    # print('>> %s' % tflite_qint8_path)
 
-    tflite_model = converter.convert()
-    open(tflite_qint8_path, "wb").write(tflite_model)
-    print('>> %s' % tflite_qint8_path)
-
-
-# ckpt to pb & tflite
-# with tf.Session() as sess:
-#     build_model(is_training=False)
-#     saver = tf.train.Saver(tf.global_variables())
-#
-#     # Load weights
-#     saver.restore(sess, weight_path)
-#
-#     # Freeze the graph
-#     frozen_graph_def = tf.graph_util.convert_variables_to_constants(
-#         sess,
-#         sess.graph_def,
-#         output_node_names)
-#
-#     # Save the frozen graph
-#     with open(pb_path, 'wb') as f:
-#       f.write(frozen_graph_def.SerializeToString())
-#
-# if tf.__version__[:4] == "1.13":
-#   converter = tf.lite.TFLiteConverter.from_frozen_graph(
-#     pb_path, input_node_names, output_node_names,
-#       input_shapes=input_shapes)
-# else:
-#   converter = tf.contrib.lite.TFLiteConverter.from_frozen_graph(
-#     pb_path, input_node_names, output_node_names,
-#       input_shapes=input_shapes)
-# tflite_model = converter.convert()
-# open(tflite_path, "wb").write(tflite_model)
 
 if __name__=='__main__':
 
