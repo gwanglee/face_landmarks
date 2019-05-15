@@ -1,3 +1,6 @@
+'''Extract video frames to save as jpgs
+'''
+
 import os
 import cv2
 

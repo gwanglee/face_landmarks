@@ -1,3 +1,7 @@
+'''Simple test code for integrity check for the input buffer of Android app.
+Data in input buffer is dumped from the Android app and reconstructed as image for integrity check.
+'''
+
 import cv2
 import numpy as np
 

@@ -1,3 +1,5 @@
+'''Make detection result video
+'''
 import os
 import cv2
 import tensorflow as tf

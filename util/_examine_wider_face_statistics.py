@@ -1,3 +1,6 @@
+'''Experimental. Examine the distribution of face sizes for a data set
+'''
+
 import widerface_explorer
 import cv2
 import numpy as np
