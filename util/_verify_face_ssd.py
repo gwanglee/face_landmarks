@@ -1,3 +1,8 @@
+'''Test code to check the detection performance of a SSD face detector.
+A face patch image is scaled-up and slided over the whole image frame to see if \
+the detector misses faces at certain scales or locations.
+'''
+
 import os
 import cv2
 import numpy as np

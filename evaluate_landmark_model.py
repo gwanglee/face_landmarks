@@ -1,3 +1,6 @@
+'''Evaluate landmark models: compute average error and save prediction images in mosaic
+'''
+
 import tensorflow as tf
 import data_landmark as data
 import net

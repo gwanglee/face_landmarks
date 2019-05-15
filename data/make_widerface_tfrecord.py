@@ -36,8 +36,8 @@ import os
 
 import widerface_explorer
 
-sys.path.append('./models/research')
-sys.path.append('./models/research/slim')
+# sys.path.append('./models/research')
+# sys.path.append('./models/research/slim')
 
 from object_detection.utils import dataset_util
 
