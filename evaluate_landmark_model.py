@@ -88,7 +88,7 @@ def evaluate(ckpt_path, tfr_path):
     normalizer_params = settings['normalizer_params']
     depth_multiplier = settings['depth_multiplier']
     depth_gamma = settings['depth_gamma']
-    is_color = settings['is_color']
+    is_color = settings['is_color'].strip() == 'True'
 
     count_records = data.get_tfr_record_count(tfr_path)
     dataset = data.load_tfrecord(tfr_path, batch_size=64, num_parallel_calls=16, is_color=is_color)
@@ -101,14 +101,15 @@ def evaluate(ckpt_path, tfr_path):
     KEEP_WIDTH = 10
     MAX_KEEP = KEEP_WIDTH*KEEP_WIDTH
 
+    CH = 3 if is_color else 1
+
     bests = []
     worsts = []
 
     image, points = iterator.get_next()
 
     with tf.variable_scope('model') as scope:
-        predicts, _ = net.lannet(image, is_training=False,
-                                 depth_mul=depth_multiplier, depth_gamma=depth_gamma,
+        predicts, _ = net.lannet(image, depth_mul=depth_multiplier, depth_gamma=depth_gamma,
                                  normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
 
     with tf.Session() as sess:
@@ -146,6 +147,7 @@ def evaluate(ckpt_path, tfr_path):
                     for x in range(BATCH_WIDTH):
                         pos = y*BATCH_WIDTH + x
                         cur_img = img[pos, :, :, :]
+
                         if not is_color:
                             cur_img = cv2.cvtColor(cur_img, cv2.COLOR_GRAY2BGR)
 

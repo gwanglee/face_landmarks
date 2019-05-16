@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 def _parse_function(example_proto, input_size=56, is_color=True, augment=False):
-    CH = 3 if is_color else 1
+    CH = 3
     SIZE = input_size
     NUM_LANDMARKS = 68
 
