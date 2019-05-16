@@ -22,8 +22,7 @@ import tensorflow as tf
 
 slim = tf.contrib.slim
 
-def lannet(inputs, is_training=False, deopout_keep_prob=0.5, scope=None, depth_mul=1.0, depth_gamma=1.0, normalizer_fn=None, normalizer_params={},
-           regularizer=None):
+def lannet(inputs,  depth_mul=1.0, depth_gamma=1.0, normalizer_fn=None, normalizer_params={}, regularizer=None):
   end_points = {}
 
   with tf.variable_scope('lannet', [inputs], reuse=tf.AUTO_REUSE):
