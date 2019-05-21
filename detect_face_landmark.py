@@ -364,36 +364,6 @@ if __name__ == '__main__':
                     video_writer.release()
                     break
 
-                # if FLAGS.save or FLAGS.disp or use_camera:
-                #     # Visualization of the results of a detection.
-                #     vis_util.visualize_boxes_and_labels_on_image_array(
-                #         image,
-                #         np.squeeze(boxes),
-                #         np.squeeze(classes).astype(np.int32),
-                #         np.squeeze(scores),
-                #         category_index,
-                #         use_normalized_coordinates=True,
-                #         line_thickness=2,
-                #         min_score_thresh=0.5)
-
-                    # if FLAGS.save:
-                    #     if not use_camera:
-                    #         image_to_save = image
-                    #         path2save = os.path.join(WRITE_DET_DIR, entry['folder'])
-                    #         path2save = os.path.join(path2save, entry['basename'] + '.' + entry['ext'])
-                    #         cv2.imwrite(path2save, image_to_save)
-                    #     else:
-                    #         if video_writer:
-                    #             image_to_save = cv2.resize(image, (624, 352))
-                    #             video_writer.write(image_to_save)
-
-                    # if FLAGS.disp or use_camera:
-                    #     cv2.imshow("image", image)
-                    #     keyIn = cv2.waitKey(1)
-                    #     if keyIn == ord('c') or keyIn == ord('x') or keyIn == ord('q'):
-                    #         more = False
-                    #         if video_writer:
-                    #             video_writer.Release()
     end_time = time()
 
     print('===== task finished: %s seconds ======', end_time-start_time)

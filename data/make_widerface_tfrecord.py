@@ -244,3 +244,5 @@ if __name__ == '__main__':
 #python make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/WiderRefine/train_random_150 --output_path=/Users/gglee/Data/WiderRefine/train_random_150/train_random_150.tfrecord --gt_path=/Users/gglee/Data/WiderRefine/train_random_150/wider_refine_train_gt.txt
 
 #  python make_widerface_tfrecord.py --image_dir=/home/gglee/Data/WiderFace/WIDER_refine_0422/ --output_path=/home/gglee/Data/WiderFace/WIDER_refine_0422/wider_train_0422.tfrecord --gt_path=/home/gglee/Data/WiderFace/WIDER_refine_0422/refine_train_0422.txt --negative_path=/home/gglee/Data/WiderFace/negatives/
+
+# python ./data/make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/face_train --output_path=/Users/gglee/Data/face_train/face_0521.tfrecord --gt_path=/Users/gglee/Data/face_train/gt.txt --negative_path=/Users/gglee/Data/face_negative/

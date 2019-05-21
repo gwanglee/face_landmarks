@@ -3,8 +3,8 @@
 export PYTHONPATH=/Users/gglee/Develop/models/research:/Users/gglee/Develop/models/research/slim
 echo $PYTHONPATH
 
-MODEL_DIR=/Users/gglee/Data/Landmark/train/0508/x001-l1.sgd.0.01.0.5.240000-l2.0.0005
-CKPT=model.ckpt-865638
+MODEL_DIR=/Users/gglee/Data/Landmark/train/0508-2/x001-l1.sgd.0.01.0.25.240000-l2.0.005
+CKPT=model.ckpt-840000
 
 freeze_graph --input_graph=$MODEL_DIR/graph.pbtxt \
             --input_checkpoint=$MODEL_DIR/$CKPT \

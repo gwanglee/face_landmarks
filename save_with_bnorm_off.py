@@ -71,8 +71,7 @@ def restore_and_save(ckpt_path):
         dph = tf.placeholder(tf.float32, (1, 56, 56, 3), 'input')
 
         with tf.variable_scope('model') as scope:
-            predicts, _ = net.lannet(dph, is_training=False,
-                                     depth_mul=depth_multiplier, depth_gamma=depth_gamma,
+            predicts, _ = net.lannet(dph, depth_mul=depth_multiplier, depth_gamma=depth_gamma,
                                      normalizer_fn=normalizer_fn, normalizer_params=normalizer_params)
             saver = tf.train.Saver(tf.global_variables())
 

@@ -21,7 +21,7 @@ class Classifier(object):
             self.images_pholder = tf.placeholder(tf.float32, [self.batch_size, input_size, input_size, 3])
 
             with tf.variable_scope('model') as scope:
-                self.landmarks, _ = net.lannet(self.images_pholder, is_training=False,
+                self.landmarks, _ = net.lannet(self.images_pholder,
                                                normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
                                                depth_mul=depth_multiplier, depth_gamma=depth_gamma)
 

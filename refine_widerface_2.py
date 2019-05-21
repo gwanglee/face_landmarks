@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_string('output_image_dir', '', 'Where to store the split set
 tf.app.flags.DEFINE_string('output_gt_path', '', 'Ground truth txtfile path corresponds to'
                             'dataset in output_image_dir')
 tf.app.flags.DEFINE_integer('min_abs_size', 30, 'ignore faces smaller than min_size pixels')
-tf.app.flags.DEFINE_float('min_rel_size', 0.1, 'ignore faces small than min_rel_size * image_size')
+tf.app.flags.DEFINE_float('min_rel_size', 0.06, 'ignore faces small than min_rel_size * image_size')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -135,6 +135,8 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
 
     MIN_FACE_TH = REL_TH
     MAX_TRY = 256
+    MIN_ASPECT_RATIO = 1.0
+    MAX_ASPECT_RATIO = 1.5
 
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
@@ -168,7 +170,7 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
             bba = find_bounding_box(annos)
 
             smallest, largest = find_smallest_and_largest_faces(annos)
-            MIN_FRAME_SIZE = 240
+            MIN_FRAME_SIZE = 300
             ABS_TH = int(MIN_FRAME_SIZE*MIN_FACE_TH)
 
             small, large = find_small_and_large_faces(annos, ABS_TH)  # find faces smaller and larger faces (small: not meet the requirement by cropping)
@@ -182,7 +184,7 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
             '''
             if (smallest is None and largest is None) or len(large) == 0:
                 IS_NEGATIVE = True
-            elif smallest['w'] > MIN_FACE_TH * W:       # smallerst face > threshold -> safe to use
+            elif smallest['w'] > MIN_FACE_TH * W and MIN_ASPECT_RATIO <= W/float(H) < MAX_ASPECT_RATIO:       # smallest face > threshold -> safe to use
                 CROP_FOUND = True
                 CROP_ANNOS = annos
                 print('case 1: safe to use the original image')
@@ -246,9 +248,9 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
 
                         if large_smallest['w'] > crop_box['w'] * MIN_FACE_TH and crop_box['w'] > MIN_FRAME_SIZE:
                             if not check_overlap(crop_box, bbs) and check_inside(bbl, crop_box):
-                                ratio = crop_box['h'] / float(crop_box['w'])
+                                ratio = crop_box['w'] / float(crop_box['h'])
 
-                                if 0.5 < ratio < 2.0:
+                                if MIN_ASPECT_RATIO < ratio < MAX_ASPECT_RATIO:
                                     CROP_FOUND = True
                                     rscore = max(0.0, 1-abs(0.75 - ratio))      # max at 1 when ratio = 0.75
                                     cur_score = rscore * crop_box['w'] * crop_box['h']
@@ -345,4 +347,5 @@ def main(_):
 if __name__ == '__main__':
     tf.app.run()
 
- # python refine_widerface.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/train/ --output_gt_path=/Users/gglee/Data/WiderRefine/train/wider_refine_train_gt.txt
+# python refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0521 --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0521.txt --min_rel_size=0.08
+# python refine_widerface_2.py --image_dir=/Users/gglee/Data/face_ours/ --gt_path=/Users/gglee/Data/face_ours/face_ours.txt --output_image_dir=/Users/gglee/Data/face_train --output_gt_path=/Users/gglee/Data/face_train/gt.txt --min_rel_size=0.08
