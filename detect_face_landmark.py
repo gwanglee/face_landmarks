@@ -230,6 +230,27 @@ if __name__ == '__main__':
     start_time = time()
     counter = 0
 
+    # state: (cx, cy, s, vx, vy, vs)
+    # measurement: (cx, cy, s),
+    kalman = cv2.KalmanFilter(6, 3, 0)
+
+    kalman.measurementMatrix = np.array([[1, 0, 0, 0, 0, 0],
+                                         [0, 1, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0]], np.float32)
+
+    kalman.transitionMatrix = np.array([[1., 0., 0., 1., 0., 0.],
+                                       [0., 1., 0., 0., 1., 0.],
+                                       [0., 0., 1., 0., 0., 1.],
+                                       [0., 0., 0., 1., 0., 0.],
+                                       [0., 0., 0., 0., 1., 0.],
+                                       [0., 0., 0., 0., 0., 1.]], np.float32)
+
+    kalman.processNoiseCov = np.array(1e-5 * np.eye(6), dtype=np.float32)
+    kalman.measurementNoiseCov = np.array(1e-1 * np.eye(3), dtype=np.float32)
+    kalman.errorCovPost = np.array(1. * np.eye(6), dtype=np.float32)
+
+    is_kalman_init = False
+
     with detection_graph.as_default():
         with tf.Session(graph=detection_graph) as sess:
 
@@ -328,6 +349,23 @@ if __name__ == '__main__':
                             patches[i, :, :, :] = ((np.asarray(patch).astype(np.float32))/255.0-1.0)
                             # verify = ((np.asarray(patches[i, :, :, 0]).squeeze()+1.0)*255.0).astype(np.uint8)
                             # cv2.imshow("verify", verify)
+                            if i == 0 and kalman is not None:
+                                cx = (r + l) / 2.0
+                                cy = (t + b) / 2.0
+                                s = (r - l)
+
+                                if not is_kalman_init:
+                                    kalman.statePost = np.array([cx, cy, s, 0., 0., 0.], np.float32)
+                                    is_kalman_init = True
+                                else:
+                                    measurement = np.array([cx, cy, s], np.float32)
+                                    kalman.correct(measurement)
+                                    kp = kalman.predict()
+                                    print('kalman predict', kp)
+
+                                    cx, cy, s = kp[0], kp[1], kp[2]
+                                    cv2.rectangle(image_draw, (int(cx-s*0.5), int(cy-s*0.5)), (int(cx+s*0.5), int(cy+s*0.5)),
+                                                  (255, 255, 0), 2)
 
                 if LANDMARK_CKPT_PATH:
                     landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
