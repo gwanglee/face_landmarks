@@ -26,7 +26,7 @@ from random import randrange
 from copy import deepcopy
 
 DEBUG = True
-DEBUG_DISPLAY_TIME = 10
+DEBUG_DISPLAY_TIME = -1
 
 tf.app.flags.DEFINE_string('image_dir', '', 'Where the source WiderFaceDB images are'
                             'located. The image_Dir contains sub-folders of event scenes')
@@ -175,7 +175,7 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
             bba = find_bounding_box(annos)
 
             smallest, largest = find_smallest_and_largest_faces(annos)
-            ABS_TH = int(MIN_FRAME_SIZE*MIN_FACE_TH)
+            ABS_TH = int(MIN_FRAME_SIZE*MIN_FACE_TH)                    # 영상을 crop해서 이용할 수 있는 얼굴의 최소 크기 계산
 
             small, large = find_small_and_large_faces(annos, ABS_TH)  # find faces smaller and larger faces (small: not meet the requirement by cropping)
             bbs = find_bounding_box(small)

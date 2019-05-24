@@ -245,4 +245,4 @@ if __name__ == "__main__":
 
         cv2.imshow("image", image)
         cv2.imwrite(os.path.join(SAVE_PATH, "val_%03d.jpg"%i), image)
-        cv2.waitKey(01)
+        cv2.waitKey(-1)

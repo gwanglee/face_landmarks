@@ -1,3 +1,4 @@
+# Making Face Detector for Landmark Detection
 ###1. 학습 데이터 생성
 - WiderFace DB와 자체 DB를 학습에 이용하며, spec에 맞는 크기의 얼굴만 DB에 포함되도록 DB를 refine하는 과정을 거친다.
 
@@ -9,6 +10,7 @@
         ~~~
         - image_dir 과 gt_path 는 원 영상과 원 ground truth file (WiderFace format)이고, 변경된 영상과 ground truth 는 output_image_dir 과 output_gt_path 에 생성된다.
         - min_rel_size는 수정된 DB에서 얼굴의 최소 크기를 설정한다. 0.1인 경우 학습 DB 내 얼굴이 영상의 너비 대비 10% 이상 되도록 조절한다.
+        > Note: refine_widerface_2.py 의 logic 에 관한 설명은 [여기](https://tde.sktelecom.com/wiki/download/attachments/230971196/refine_wider_2.pptx?version=1&modificationDate=1558663095778&api=v2) 참고한다.
 - 변경한 image / ground truth 로부터 .tfrecord 를 생성한다.
     - WiderFace DB와 자체 DB 를 manually 합친다 (영상을 동일 폴더에 복사. gt 파일을 edit하여 하나로 합친다).
     - make_widerface_tfrecord.py 를 이용해서 tfrecord 파일을 만든다.
@@ -22,9 +24,8 @@
 - Tensorflow Object Detection API (TF_OD_API)를 이용하여 얼굴검출기를 학습한다 (ssd_gpuX_MMDD.sh과 ssd_face_YYY_vZZ.config 형식의 파일을 참고)
     - ssd_gpuX_MMDD.sh: 학습을 위한 script (dgx(242) 기준으로 폴더 설정이 되어있음)
     - ssd_face_YYY_vZZ.config: 모델 및 학습 configuration
-> - Note: 검출 성능 향상을 위해 TF_OD_API 일부 코드를 변경한 부분이 있으며, 상세 내용은 다음 ppt를 참고한다.
-> https://tde.sktelecom.com/wiki/download/attachments/229489277/Anchors%20in%20TF_OD_API.pptx?version=2&modificationDate=1556844425000&api=v2
-> - 코드 변경은 *models/research/object_detection/anchor_generators/multiple_grid_anchor_generator.py*에서 line 322
+> - Note: 검출 성능 향상을 위해 TF_OD_API 일부 코드를 변경한 부분이 있으며, 상세 내용은 [여기](https://tde.sktelecom.com/wiki/download/attachments/229489277/Anchors%20in%20TF_OD_API.pptx?version=2&modificationDate=1556844425000&api=v2)를 참고한다.
+> - 코드 변경은 *models/research/object_detection/anchor_generators/multiple_grid_anchor_generator.py* 파일의 line 322를 다음과 같이 고친다.
 ~~~
     if layer == 0 and reduce_boxes_in_lowest_layer:
     # layer_box_specs = [(0.1, 1.0), (scale, 2.0), (scale, 0.5)]      # 기존: TF original
@@ -105,3 +106,6 @@
           # return tf.concat([centers - .5 * sizes, centers + .5 * sizes], 1)    # TF: original
         ~~~ 
         > - 주의사항: 위 _center_size_bbox_to_corners_bbox 함수 내용이 변경된 채로 TF_OD_API를 실행시키면 (학습, model freezing, inference 등) 변경된 anchor 형식으로 인해 잘못된 결과가 나오게 된다. box_prior.txt 생성시에만 변경된 코드가 사용될 수 있도록 주의해야 한다. 
+        
+
+- 생성된 tflite 및 box_prior.txt 파일을 안드로이드 소스코드의 assets 폴더에 복사하여 이용한다.
