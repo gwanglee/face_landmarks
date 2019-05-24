@@ -410,4 +410,5 @@ if __name__ == '__main__':
 # python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160x160_v3/freeze
 # python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/
 # python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --write_dir_name=160v5 --folder_list=./folder.txt
-# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_160_v5/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/0515/ssd_face_128_v13/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000
+# python detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/0515/ssd_face_128_v13/freeze/ --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/bests/0412_gpu2_x109-l1.sgd.0.01.0.25.180000-l2.0.005/model.ckpt-614648
