@@ -1,5 +1,5 @@
 # Making Face Detector for Landmark Detection
-###1. 학습 데이터 생성
+##1. 학습 데이터 생성
 - WiderFace DB와 자체 DB를 학습에 이용하며, spec에 맞는 크기의 얼굴만 DB에 포함되도록 DB를 refine하는 과정을 거친다.
 
     - 가장 작은 크기 얼굴이 프레임 너비의 10%가 되도록 image를 crop 하고 ground truth 를 변경한다 (use *refine_widerface_2.py*).
@@ -20,7 +20,7 @@
         python data/make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/face_train/ --gt_path=/Users/gglee/Data/face_train/gt.txt --output_path=/Users/gglee/Data/face_train/face_train_0522_10%.tfrecord --negative_path=/Users/gglee/Data/face_negative/
         ~~~
 
-###2. Run training
+##2. Run training
 - Tensorflow Object Detection API (TF_OD_API)를 이용하여 얼굴검출기를 학습한다 (ssd_gpuX_MMDD.sh과 ssd_face_YYY_vZZ.config 형식의 파일을 참고)
     - ssd_gpuX_MMDD.sh: 학습을 위한 script (dgx(242) 기준으로 폴더 설정이 되어있음)
     - ssd_face_YYY_vZZ.config: 모델 및 학습 configuration
@@ -32,7 +32,7 @@
       layer_box_specs = [(0.1, 1.0), (0.173, 1.0), (0.246, 1.0)]      # handcraft
 ~~~ 
 
-###3. ckpt를 tflite 로 변환
+##3. ckpt를 tflite 로 변환
 - *conver_face_checkpoint.sh* 내 파일 경로를 수정한다
     ~~~
     echo "Converting .ckpt to fronzen_graph"
