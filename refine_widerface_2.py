@@ -2,8 +2,7 @@
 
 
 """Create a sub-set of Wider Face DB by given criteria (e.g. minimum face size)
-
-Add more explanation
+image_dir에 있는 wider_face 영상을 변형하여, output_image_dir에 저장한다. 즉, 주어진 criteria에 맞게 변형된 WiderFace 형식의 DB가 output_image_dir과 output_gt_path에 생성된다.
 
 Example usage: (need to update)
     python split_wider_face.py \
@@ -12,32 +11,22 @@ Example usage: (need to update)
         --output_image_dir=/dataset/where/to/save/'images' \
         --output_gt_path=/path/to/resulting/gt.txt
         --min_size=relative_size_threshold
-
-Todo:
-    * add directory check in main func.
 """
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from shutil import copyfile
-
 import os
-import sys
 import cv2
 
 import tensorflow as tf
 import widerface_explorer
 from random import randrange
 from copy import deepcopy
-from operator import itemgetter
 
 DEBUG = True
 DEBUG_DISPLAY_TIME = 10
-
-sys.path.append('/Users/gglee/Develop/models/research')
-sys.path.append('/Users/gglee/Develop/models/research/slim')
 
 tf.app.flags.DEFINE_string('image_dir', '', 'Where the source WiderFaceDB images are'
                             'located. The image_Dir contains sub-folders of event scenes')
@@ -121,6 +110,12 @@ def refine_annos(annos):
 
 
 def check_inside(inbox, outbox):
+    '''
+    inbox가 outbox 내에 포함되는지를 검사한다.
+    :param inbox: dict of {'l':l, 't':t, 'r':r, 'b':b}
+    :param outbox: dict of {'l':l, 't':t, 'r':r, 'b':b}
+    :return: True if outbox includes inbox, False if not
+    '''
     if inbox['l'] >= outbox['l'] and inbox['t'] >= outbox['t'] and \
         inbox['r'] <= outbox['r'] and inbox['b'] <= outbox['b']:
         return True
@@ -129,14 +124,24 @@ def check_inside(inbox, outbox):
 
 
 def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
+    '''
+    실제로 Dataset을 변경하는 함수
+    :param db_path:
+    :param gt_path:
+    :param write_db_path:
+    :param write_gt_path:
+    :param REL_TH:
+    :return:
+    '''
 
     wdb = widerface_explorer.wider_face_db(db_path, gt_path)
     tmp_path = os.path.join(os.path.dirname(db_path), 'tmp')
 
-    MIN_FACE_TH = REL_TH
-    MAX_TRY = 256
-    MIN_ASPECT_RATIO = 1.0
+    MIN_FACE_TH = REL_TH    # Frame 크기 대비 얼굴의 최소 크기 (e.g., 0.1 = 10%)
+    MAX_TRY = 256           # 영상 변경 시 random try 후 가장 적절한 crop을 선택하는데, 이 때 사용되는 random try의 횟수
+    MIN_ASPECT_RATIO = 1.0  # 생성된 crop은 MIN_ASPECT_RATIO <= W/H <= MAX_ASPECT_RATIO를 만족해야 한다.
     MAX_ASPECT_RATIO = 1.5
+    MIN_FRAME_SIZE = 300    # Crop된 영상을 최소 MIN_FRAME_SIZE 이상이어야 한다
 
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
@@ -170,7 +175,6 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
             bba = find_bounding_box(annos)
 
             smallest, largest = find_smallest_and_largest_faces(annos)
-            MIN_FRAME_SIZE = 300
             ABS_TH = int(MIN_FRAME_SIZE*MIN_FACE_TH)
 
             small, large = find_small_and_large_faces(annos, ABS_TH)  # find faces smaller and larger faces (small: not meet the requirement by cropping)
@@ -182,12 +186,11 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
                else
                2) w(smallest) / w(bbox(all)) ==> bbox as the whole image
             '''
-            if (smallest is None and largest is None) or len(large) == 0:
+            if (smallest is None and largest is None) or len(large) == 0:       #
                 IS_NEGATIVE = True
             elif smallest['w'] > MIN_FACE_TH * W and MIN_ASPECT_RATIO <= W/float(H) < MAX_ASPECT_RATIO:       # smallest face > threshold -> safe to use
                 CROP_FOUND = True
                 CROP_ANNOS = annos
-                print('case 1: safe to use the original image')
             else:
                 target_crop_width = smallest['w'] / MIN_FACE_TH     # maximum crop width we can take
 
@@ -347,5 +350,9 @@ def main(_):
 if __name__ == '__main__':
     tf.app.run()
 
-# python refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0521 --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0521.txt --min_rel_size=0.08
+# python refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0521 --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0521.txt --min_rel_size=0.1
 # python refine_widerface_2.py --image_dir=/Users/gglee/Data/face_ours/ --gt_path=/Users/gglee/Data/face_ours/face_ours.txt --output_image_dir=/Users/gglee/Data/face_train --output_gt_path=/Users/gglee/Data/face_train/gt.txt --min_rel_size=0.08
+
+
+# python refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0522_10% --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0522_10%.txt --min_rel_size=0.1
+# python refine_widerface_2.py --image_dir=/Users/gglee/Data/face_ours/ --gt_path=/Users/gglee/Data/face_ours/face_ours.txt --output_image_dir=/Users/gglee/Data/face_train --output_gt_path=/Users/gglee/Data/face_train/gt.txt --min_rel_size=0.1

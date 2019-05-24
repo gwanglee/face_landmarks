@@ -1,3 +1,7 @@
+'''
+Used to convert a trained landmark model to .tflite model
+'''
+
 import tensorflow as tf
 import data_landmark as data
 import net
