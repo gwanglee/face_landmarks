@@ -181,12 +181,14 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
             bbs = find_bounding_box(small)
             bbl = find_bounding_box(large)
 
+            small_smallest, small_largest = find_smallest_and_largest_faces(small)
+
             '''
             1) smallest > threshold  ==>  no need to crop or modify
                else
                2) w(smallest) / w(bbox(all)) ==> bbox as the whole image
             '''
-            if (smallest is None and largest is None) or len(large) == 0:       #
+            if (smallest is None and largest is None) or (len(large) == 0 and small_largest['w'] < ABS_TH*0.5):       #
                 IS_NEGATIVE = True
             elif smallest['w'] > MIN_FACE_TH * W and MIN_ASPECT_RATIO <= W/float(H) < MAX_ASPECT_RATIO:       # smallest face > threshold -> safe to use
                 CROP_FOUND = True
