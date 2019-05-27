@@ -65,6 +65,8 @@ FLAGS = flags.FLAGS
 
 LANDMARK_INPUT_SIZE = 56
 
+COLORS = [(85, 255, 85), (85, 255, 255), (255, 85, 255), (255, 255, 85), (85, 85, 255), (255, 85, 85), ]
+
 def prepare_filelist(folder_path):
     '''
     given list of folder names, return list of fliepaths for images to evaluate
@@ -129,8 +131,19 @@ def read_detection(filepath):
     return detection
 
 
-if __name__ == '__main__':
+def draw_landmarks(image_draw, box, landmarks, color):
+    H, W = box[3] - box[1], box[2] - box[0]
+    for j in range(68):
+        if j not in [16, 21, 26, 41, 30, 47, 35, 59, 67]:
+            p0, p1 = landmarks[j], landmarks[j + 1]
+            cv2.line(image_draw, (int(box[0] + (p0[0] * W) + 0.5), int(box[1] + (p0[1] * H) + 0.5)),
+                     (int(box[0] + (p1[0] * W) + 0.5), int(box[1] + (p1[1] * H) + 0.5)), color, 1)
+    for p in landmarks:
+        cv2.circle(image_draw, (int(box[0] + (p[0] * W) + 0.5), int(box[1] + (p[1] * H) + 0.5)), 2, color)
 
+
+
+if __name__ == '__main__':
     # models
     MODEL_NAME = FLAGS.face_checkpoint_dir
     FACE_CKPT_PATH = os.path.join(MODEL_NAME, 'frozen_inference_graph.pb')
@@ -152,6 +165,7 @@ if __name__ == '__main__':
     cap = None
     landmark_estimator = None
     LIVE_FEED = False
+    TRACK_FOR_EVERY_N_FRAMES = 3
 
     landmark_settings = load_settings(LANDMARK_CKPT_PATH)
 
@@ -230,26 +244,8 @@ if __name__ == '__main__':
     start_time = time()
     counter = 0
 
-    # state: (cx, cy, s, vx, vy, vs)
-    # measurement: (cx, cy, s),
-    kalman = cv2.KalmanFilter(6, 3, 0)
-
-    kalman.measurementMatrix = np.array([[1, 0, 0, 0, 0, 0],
-                                         [0, 1, 0, 0, 0, 0],
-                                         [0, 0, 1, 0, 0, 0]], np.float32)
-
-    kalman.transitionMatrix = np.array([[1., 0., 0., 1., 0., 0.],
-                                       [0., 1., 0., 0., 1., 0.],
-                                       [0., 0., 1., 0., 0., 1.],
-                                       [0., 0., 0., 1., 0., 0.],
-                                       [0., 0., 0., 0., 1., 0.],
-                                       [0., 0., 0., 0., 0., 1.]], np.float32)
-
-    kalman.processNoiseCov = np.array(1e-5 * np.eye(6), dtype=np.float32)
-    kalman.measurementNoiseCov = np.array(1e-1 * np.eye(3), dtype=np.float32)
-    kalman.errorCovPost = np.array(1. * np.eye(6), dtype=np.float32)
-
-    is_kalman_init = False
+    tracker = cv2.TrackerMOSSE_create()
+    is_tracker_init = False
 
     with detection_graph.as_default():
         with tf.Session(graph=detection_graph) as sess:
@@ -270,6 +266,7 @@ if __name__ == '__main__':
             pos = 0
             image = None
             entry = None
+            fr_no = 0
 
             while more:
                 if cap:
@@ -339,33 +336,33 @@ if __name__ == '__main__':
 
                     cv2.rectangle(image_draw, (l, t), (r, b), (0, 255, 0), 2)       # green: expanded
 
+                    if i == 0 and tracker is not None:
+                        w = r - l
+                        h = b - t
+
+                        if is_tracker_init:
+                            tres, tbox = tracker.update(image)
+
+                            if tres:
+                                tbox = [int(tbox[0]), int(tbox[1]), int(tbox[0] + tbox[2]), int(tbox[1] + tbox[3])]
+                                cv2.rectangle(image_draw, (tbox[0], tbox[1]), (tbox[2], tbox[3]), (0, 255, 255), 2)
+                                crop_boxes.append(tbox)
+
+                        if fr_no % TRACK_FOR_EVERY_N_FRAMES == 0:
+                            tracker = cv2.TrackerMOSSE_create()
+                            initres = tracker.init(image, (l, t, w, h))
+                            is_tracker_init = True
+                            print('tracker inited at %d' % fr_no, initres)
+
                 for i, box in enumerate(crop_boxes):
                     if landmark_estimator:
                         if i < LANDMARK_BATCHSIZE:
                             l, t, r, b = box[0], box[1], box[2], box[3]
                             face = image[t:b, l:r, :]
+                            print(face.shape)
 
                             patch = cv2.resize(face, (LANDMARK_INPUT_SIZE, LANDMARK_INPUT_SIZE))
                             patches[i, :, :, :] = ((np.asarray(patch).astype(np.float32))/255.0-1.0)
-                            # verify = ((np.asarray(patches[i, :, :, 0]).squeeze()+1.0)*255.0).astype(np.uint8)
-                            # cv2.imshow("verify", verify)
-                            if i == 0 and kalman is not None:
-                                cx = (r + l) / 2.0
-                                cy = (t + b) / 2.0
-                                s = (r - l)
-
-                                if not is_kalman_init:
-                                    kalman.statePost = np.array([cx, cy, s, 0., 0., 0.], np.float32)
-                                    is_kalman_init = True
-                                else:
-                                    measurement = np.array([cx, cy, s], np.float32)
-                                    kalman.correct(measurement)
-                                    kp = kalman.predict()
-                                    print('kalman predict', kp)
-
-                                    cx, cy, s = kp[0], kp[1], kp[2]
-                                    cv2.rectangle(image_draw, (int(cx-s*0.5), int(cy-s*0.5)), (int(cx+s*0.5), int(cy+s*0.5)),
-                                                  (255, 255, 0), 2)
 
                 if LANDMARK_CKPT_PATH:
                     landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
@@ -374,15 +371,7 @@ if __name__ == '__main__':
 
                     for i, box in enumerate(crop_boxes):
                         face_landmarks.append({'face': box, 'landmark': landmarks[i]})
-
-                        H, W = box[3]-box[1], box[2] - box[0]
-                        for j in range(68):
-                            if j not in [16, 21, 26, 41, 30, 47, 35, 59, 67]:
-                                p0, p1 = landmarks[i][j], landmarks[i][j+1]
-                                cv2.line(image_draw, (int(box[0]+(p0[0]*W)+0.5), int(box[1]+(p0[1]*H)+0.5)),
-                                         (int(box[0] + (p1[0] * W) + 0.5), int(box[1] + (p1[1] * H) + 0.5)), (0, 0, 255), 1)
-                        for p in landmarks[i]:
-                            cv2.circle(image_draw, (int(box[0]+(p[0]*W)+0.5), int(box[1]+(p[1]*H)+0.5)), 2, (0, 255, 255))
+                        draw_landmarks(image_draw, box, landmarks[i], COLORS[i])
 
                     if FLAGS.write_txt_dir and not LIVE_FEED:
                         save_dir = os.path.join(entry['folder'], WRITE_TXT_DIR)
@@ -401,6 +390,8 @@ if __name__ == '__main__':
                 if key == 113 or key == 120:
                     video_writer.release()
                     break
+
+                fr_no += 1
 
     end_time = time()
 
