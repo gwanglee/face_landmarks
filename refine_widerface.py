@@ -115,12 +115,15 @@ def get_iou(bb1, bb2):
     if bb1['t'] > bb2['b'] or bb1['b'] < bb2['t']:
         return 0.0
 
-    ib = [max(bb1['l'], bb2['l']), max(bb1['t'], bb1['t']), min(bb1['r'], bb2['r']), min(bb1['b'], bb2['b'])]
+    ib = [max(bb1['l'], bb2['l']), max(bb1['t'], bb2['t']), min(bb1['r'], bb2['r']), min(bb1['b'], bb2['b'])]
     ai = (ib[2] - ib[0]) * (ib[3] - ib[1])
     a1 = (bb1['r'] - bb1['l']) * (bb1['b'] - bb1['t'])
     a2 = (bb2['r'] - bb2['l']) * (bb2['b'] - bb2['t'])
 
-    return ai / (a1 + a2 - ai)
+    iou = ai / (a1 + a2 - ai)
+    assert iou <= 1.0, 'iou > 1.0'
+
+    return iou
 
 
 def refine_annos(annos):
