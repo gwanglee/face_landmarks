@@ -10,14 +10,15 @@
         ~~~
         - image_dir 과 gt_path 는 원 영상과 원 ground truth file (WiderFace format)이고, 변경된 영상과 ground truth 는 output_image_dir 과 output_gt_path 에 생성된다.
         - min_rel_size는 수정된 DB에서 얼굴의 최소 크기를 설정한다. 0.1인 경우 학습 DB 내 얼굴이 영상의 너비 대비 10% 이상 되도록 조절한다.
+        - 위 command 는 WiderFaceDB와 자체 DB를 각각 refine 하는 예제이다.
         > Note: refine_widerface_2.py 의 logic 에 관한 설명은 [여기](https://tde.sktelecom.com/wiki/download/attachments/230971196/refine_wider_2.pptx?version=1&modificationDate=1558663095778&api=v2) 참고한다.
 - 변경한 image / ground truth 로부터 .tfrecord 를 생성한다.
     - WiderFace DB와 자체 DB 를 manually 합친다 (영상을 동일 폴더에 복사. gt 파일을 edit하여 하나로 합친다).
     - make_widerface_tfrecord.py 를 이용해서 tfrecord 파일을 만든다.
-    - negative 영상이 있을 경우 negative_path option을 통해 설정한다.
+    - negative 영상이 있을 경우 negative_path option을 통해 설정한다. Negative data가 positive에 비해 너무 많은 경우 negative_sample을 이용해 random sample 한다.
     
         ~~~
-        python data/make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/face_train/ --gt_path=/Users/gglee/Data/face_train/gt.txt --output_path=/Users/gglee/Data/face_train/face_train_0522_10%.tfrecord --negative_path=/Users/gglee/Data/face_negative/
+        python data/make_widerface_tfrecord.py --image_dir=/Users/gglee/Data/face_train/ --gt_path=/Users/gglee/Data/face_train/gt.txt --output_path=/Users/gglee/Data/face_train/face_train_0522_10%.tfrecord --negative_path=/Users/gglee/Data/face_negative/ --negative_sample=30
         ~~~
 
 ##2. Run training
@@ -31,6 +32,13 @@
     # layer_box_specs = [(0.1, 1.0), (scale, 2.0), (scale, 0.5)]      # 기존: TF original
       layer_box_specs = [(0.1, 1.0), (0.173, 1.0), (0.246, 1.0)]      # handcraft
 ~~~ 
+
+- Code 위치@DGX: 172.27.107.242:/home/app_su/youjin/face_landmark/
+    - code: face_landmarks
+    - models_latest: Tensorflow (기존 코드를 위 내용대로 변경해서 사용해도 무방)
+    - data: tfrecords
+    - train: trained models
+
 
 ##3. ckpt를 tflite 로 변환
 - *conver_face_checkpoint.sh* 내 파일 경로를 수정한다
@@ -109,3 +117,4 @@
         
 
 - 생성된 tflite 및 box_prior.txt 파일을 안드로이드 소스코드의 assets 폴더에 복사하여 이용한다.
+    - 여러 모델이 assets 폴더에 있을 경우 .tflite 파일은 java 코드 내에서 파일 명을 변경해서 이용 가능하나, box_prior.txt는 파일명을 설정하는 부분이 없음. 사용할 파일명을 box_prior.txt로 변경해서 이용해야 함
