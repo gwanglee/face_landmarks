@@ -41,7 +41,7 @@
 
 
 ##3. ckpt를 tflite 로 변환
-- *conver_face_checkpoint.sh* 내 파일 경로를 수정한다
+- *./util/conver_face_checkpoint.sh* 내 파일 경로를 수정한다
     ~~~
     echo "Converting .ckpt to fronzen_graph"
     CKPT_PATH="/Users/gglee/Data/TFModels/0522/ssd_face_128_v18"
@@ -52,9 +52,9 @@
     - CKPT_NAME: 변경할 모델의 파일 명 (mode.ckpt-XXXXXXX)
     - PIPELINE_CONFIG_NAME: 학습에 사용된 config file
     
-- *convert_face_checkpoint.sh* 를 실행시켜 .ckpt를 .tflite로 변환한다.
+- *./util/convert_face_checkpoint.sh* 를 실행시켜 .ckpt를 .tflite로 변환한다.
     ~~~
-    convert_face_checkpoint.sh
+    ./util/convert_face_checkpoint.sh
     ~~~
 - box_prior.txt 파일을 생성한다.
     - tflite의 ssd model에는 box_prior.txt 파일이 함께 배포되는데, 해당 파일 생성을 위한 documentation이나 별도 tool이 공개되어 있지 않다. TF_OD_API 내의 anchor generator 코드를 수정하여 box_prior.txt 를 생성한다. 
