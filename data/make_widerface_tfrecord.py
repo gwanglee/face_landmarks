@@ -46,6 +46,7 @@ tf.app.flags.DEFINE_string('image_dir', '', 'Location of directory directory tha
 tf.app.flags.DEFINE_string('gt_path', '', 'Location of ground truth text file')
 tf.app.flags.DEFINE_string('output_path', '', 'Filepath where resulting .tfrecord will be saved')
 tf.app.flags.DEFINE_string('negative_path', None, 'Negative images to add')
+tf.app.flags.DEFINE_integer('negative_sample', 1, 'Sampling rate for negative data')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -171,7 +172,7 @@ def prepare_negative_example(image_path):
     return example
 
 
-def write_tfrecord(image_path, gt_path, tfrecord_path, negative_path=None):
+def write_tfrecord(image_path, gt_path, tfrecord_path, negative_path=None, negative_sample=1):
     writer = tf.python_io.TFRecordWriter(tfrecord_path)
 
     wdb = widerface_explorer.wider_face_db(image_path, gt_path)
@@ -184,6 +185,12 @@ def write_tfrecord(image_path, gt_path, tfrecord_path, negative_path=None):
                 if f.split('.')[-1].lower() in ['jpg', 'png']:
                     negative_images.append(os.path.join(root, f))
     num_negatives = len(negative_images)
+
+    if num_negatives > 0 and negative_sample > 1:
+        shuffle(negative_images)
+        num_to_sample = max(1, int(len(negative_images) / negative_sample))
+        negative_images = negative_images[0:num_to_sample]
+        num_negatives = num_to_sample
 
     idx = range(num_positives+num_negatives)
     if negative_path:
@@ -233,8 +240,9 @@ def main(_):
     GT_PATH = FLAGS.gt_path
     OUTPUT_PATH = FLAGS.output_path
     NEGATIVE_PATH = FLAGS.negative_path
+    NEGATIVE_SAMPLE = FLAGS.negative_sample
 
-    write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH, NEGATIVE_PATH)
+    write_tfrecord(IMAGE_DIR, GT_PATH, OUTPUT_PATH, NEGATIVE_PATH, NEGATIVE_SAMPLE)
     # integrity_check(OUTPUT_PATH)
     
 if __name__ == '__main__':
