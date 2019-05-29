@@ -20,7 +20,7 @@ tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adag
 tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
 tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
 tf.app.flags.DEFINE_float('wing_eps', 2, 'eps for wing_loss')
-tf.app.flags.DEFINE_float('min_learning_rate', None, 'Minimum value of learning rate to use')
+# tf.app.flags.DEFINE_float('min_learning_rate', None, 'Minimum value of learning rate to use')
 
 tf.app.flags.DEFINE_float('momentum', 0.99, 'Initial learning rate')
 tf.app.flags.DEFINE_float('rmsprop_momentum', 0.9, 'Momentum.')

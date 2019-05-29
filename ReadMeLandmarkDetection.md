@@ -49,9 +49,75 @@
         VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.val.tfrecord' % SIZE         # validation tfrecord 저장 경로
         ~~~
 
-## 2. Train
-- script 내의 *run_train_slim_MMDD.sh* 와 *ssd_face_XXX_vYY.config* 참고
+## 2. Training
+- *train_slim.py* 를 이용하여 학습한다 (*script/run_train_slim_MMDD.sh* 참고)
+- *train_slim.py* 에 사용할 수 있는 argument 는 다음과 같다.
+    ~~~
+    tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', '학습된 모델을 저장할 경로')
+    tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
+    tf.app.flags.DEFINE_string('val_tfr', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for validation')
+    tf.app.flags.DEFINE_boolean('is_color', True, 'True 이면 RGB, False 이면 gray 입력 사용')
+    tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to use')
+    tf.app.flags.DEFINE_integer('input_size', 56, 'N x N for the network input')
     
-## 3. .tflite 변환
-- Use *save_with_bnorm_off.py*
+    tf.app.flags.DEFINE_string('loss', 'l1', 'Loss func: [l1, l2, wing, euc_wing, pointwise_l2, chain, sqrt]')
+    tf.app.flags.DEFINE_string('optimizer', 'sgd', 'Optimizer to use: [adadelt, adagrad, adam, ftrl, momentum, sgd or rmsprop]')
+    tf.app.flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate')
+    tf.app.flags.DEFINE_float('wing_w', 0.5, 'w for wing_loss')
+    tf.app.flags.DEFINE_float('wing_eps', 2, 'eps for wing_loss')
+    
+    tf.app.flags.DEFINE_float('momentum', 0.99, 'Momentum for momentum optimizer')
+    tf.app.flags.DEFINE_float('rmsprop_momentum', 0.9, 'Momentum.')
+    tf.app.flags.DEFINE_float('rmsprop_decay', 0.9, 'Decay term for RMSProp.')
+    tf.app.flags.DEFINE_float('adam_beta1', 0.9, 'The exponential decay rate for the 1st moment estimates.')
+    tf.app.flags.DEFINE_float('adam_beta2', 0.999, 'The exponential decay rate for the 2nd moment estimates.')
+    
+    tf.app.flags.DEFINE_string('learning_rate_decay_type', 'exponential', 'Which learning rate decay to use: [fixed, exponential, or polynomial]')
+    tf.app.flags.DEFINE_float('learning_rate_decay_factor', 0.94, 'Learning rate decay factor')
+    tf.app.flags.DEFINE_integer('learning_rate_decay_step', 50000, 'Decay lr at every N steps')
+    tf.app.flags.DEFINE_boolean('learning_rate_decay_staircase', True, 'Staircase decay or not')
+    tf.app.flags.DEFINE_float('end_learning_rate', 0.00005, 'The minimal lr used by a polynomial lr decay')
+    
+    tf.app.flags.DEFINE_float('moving_average_decay', None, 'The decay to use for moving average decay. If left as None, no moving average decay')
+    tf.app.flags.DEFINE_integer('max_number_of_steps', 300000, 'The maximum number of training steps')
+    tf.app.flags.DEFINE_boolean('use_batch_norm', False, 'To use or not BatchNorm on conv layers')
+    
+    tf.app.flags.DEFINE_string('regularizer', None, 'l1, l2 or l1_12')
+    tf.app.flags.DEFINE_float('regularizer_lambda', 0.004, 'Lambda for the regularization')
+    tf.app.flags.DEFINE_float('regularizer_lambda_2', 0.004, 'Lambda for the regularization (for l1_l2)')
+    
+    tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable quantization')
+    tf.app.flags.DEFINE_float('depth_multiplier', 2.0, 'Network의 channel depth를 결정')
+    tf.app.flags.DEFINE_float('depth_gamma', 1.0, 'Layer 별로 channel depth를 다르게 설정하기 위한 parameter')
+    ~~~
+- 학습 시 *train_dir* 내에 *train_settin.txt* 가 생성되며, 학습에 사용된 입력 설정을 저장하고 있다.
+
+## 3. PC에서 검증
+- 학습된 model을 실행시켜 보기 위해서는 detect_face_landmark.py  이용한다.
+- 학습된 model의 성능 평가를 위해서는 evaluate_landmark_model.py 를 이용한다.
+    - Argument로는 *tfrecord* 와 *models_dir* 을 전달한다.
+    - *models_dir*: *models_dir* 의 sub-folders 에 학습된 landmark 모델이 저장되어 있다 (여러 설정으로 학습을 진행하는 경우가 많아 한번에 평가하기 위해 root dir 을 지정) 
+        ~~~
+        tf.app.flags.DEFINE_string('tfrecord', '/home/gglee/Data/160v5.0322.val.tfrecord', '.tfrecord for evaluation')
+        tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train/0408', 'where trained models are stored')
+        ~~~
+    - 평가 완료 시 root dir 에 eval.txt 파일이 생성된다 (Column은 각각 directory 명, ckpt 명, 평균 error)
+        ~~~
+        x150-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.021192
+        x151-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.019291
+        x152-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.018687
+        x153-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.032973
+        x154-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.026730
+        x155-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.018690
+        x156-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.030149
+        x157-wing.sgd.0.01.0.25.240000-l2.0.01	model.ckpt-840000	0.019453
+        ~~~
+    - 평가 완료 시 각 model directory 에 evaluation set 에서 검출한 landmark 결과, best 100 images, worst 100 images 가 mosaic 형태로 저장된다.
+## 4. .tflite 변환
+- Use *save_with_bnorm_off.py*: 지정된 위치에 있는 모델을 tflite로 저장한다.
+    - models_dir: 변환할 모델들이 모여있는 root dir
+    - 변환된 모델은 원본 모델과 동일한 폴더 내에 landmark.float.tflite 라는 파일 명으로 생성된다.
+    ~~~
+    tf.app.flags.DEFINE_string('models_dir', '/Users/gglee/Data/Landmark/train/0508-2', 'where trained models are stored')
+    ~~~
     > note: convert_landmark_checkpoint.sh 와 convert_landmark_tflite.st 파일은 사용하지 않음. 처음에 landmark 모델을 tflite 변환하기 위해 사용한 파일이지만, 해당 파일로 변환한 모델은 Android app 에서 동작하지 않는다. BatchNorm이 training mode로 동작되는 것으로 추정.
