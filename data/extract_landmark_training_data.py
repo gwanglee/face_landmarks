@@ -7,33 +7,28 @@ from random import random
 
 DEBUG = True
 
-MIN_CONF = 0.3
-MIN_OVERLAP = 0.3
-EXTEND = True
-EXTEND_RATIO = 0.1
+MIN_CONF = 0.3      # 얼굴 검출 시 Confidence
+MIN_OVERLAP = 0.3   # 얼굴 검출 시 IOU threshold: face의 ground truth가 없기 때문에, landmark points의 bounding box와 비교
+EXTEND = True       # 검출된 얼굴 영역 영상 저장 시 영역을 확장할 것인지 결정
+EXTEND_RATIO = 0.1  # 검출된 얼굴 영역의 확장 시 확장 크기를 결정 (0.1 이면 10% 확장하여 저장)
 
-ROTATE = True
-MAX_ROTATE = 45
-DETECTOR_INPUT_SIZE = 128
+ROTATE = True       # rotation augmentation 을 사용할 것인지
+MAX_ROTATE = 45     # rotation augmentation 의 범위
+DETECTOR_INPUT_SIZE = 128  # 검출기의 입력 크기
 
 # todo: add jittering?
 
-WRITE_PATH = '/Users/gglee/Data/Landmark/export/0424'
-# RAND_FACTOR = 16.0
+WRITE_PATH = '/Users/gglee/Data/Landmark/export/0424'  # Crop된 patch와 landmark annotation을 저장할 폴더
+# RAND_FACTOR = 16.0        # Multi-PIE의 경우 양이 많기 때문에 RAND_FACTOR의 비율로 sampling 하여 이용
 
-IMAGES_DIR_PATHS = [
-        # '/home/gglee/gglee/Data/Landmark/300W/01_Indoor',
-        # '/Users/gglee/Data/Landmark/300W/02_Outdoor',
-        # '/Users/gglee/Data/Landmark/menpo_train_release',
-        # '/home/gglee/Data/Multi-Pie/landmark'
-        '/Users/gglee/Data/Landmark/300W/01_Indoor',
-        '/Users/gglee/Data/Landmark/300W/02_Outdoor',
-        '/Users/gglee/Data/Landmark/menpo_train_release',
-        '/Users/gglee/Data/Landmark/mpie'
-    ]
+IMAGES_DIR_PATHS = [  # 학습 data를 추출하기 위한 원본 학습 data가 저장되어 있는 위치
+    '/Users/gglee/Data/Landmark/300W/01_Indoor',
+    '/Users/gglee/Data/Landmark/300W/02_Outdoor',
+    '/Users/gglee/Data/Landmark/menpo_train_release',
+    '/Users/gglee/Data/Landmark/mpie'
+]
 
-FACE_DETECTOR_PATH = '/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_128_v1/freeze/frozen_inference_graph.pb'
-# FACE_DETECTOR_PATH = '/home/gglee/Data/TensorflowCheckpoints/ssd_mobilenet_v2_quantized_160_v5/freeze/frozen_inference_graph.pb'
+FACE_DETECTOR_PATH = '/Users/gglee/Data/TFModels/ssd_mobilenet_v2_quantized_128_v1/freeze/frozen_inference_graph.pb'  # 사용할 얼굴 검출기
 
 def get_files(folder_path):
     '''
@@ -111,7 +106,7 @@ def normalize_points_with_rect(pts, faceRect):
 
 def center_normalize_points_with_rect(pts, faceRect):
     '''
-    normalize point coordiates between [-1, 1] w.r.t. the face rectanble
+    normalize point coordiates between [-1, 1] w.r.t. the face rectangle
     :param pts: landmark points
     :param faceRect:  [l, t, r, b]
     :return: normalized points

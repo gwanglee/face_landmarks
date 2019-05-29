@@ -1,5 +1,7 @@
-'''Simple test code for integrity check for the input buffer of Android app.
+'''Simple test code to check the integrity of the input buffer of Android app.
 Data in input buffer is dumped from the Android app and reconstructed as image for integrity check.
+
+>> problem solved! no need to use this code
 '''
 
 import cv2

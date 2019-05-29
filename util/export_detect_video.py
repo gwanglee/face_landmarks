@@ -1,5 +1,7 @@
-'''Make detection result video
+'''Make detection result video.
+For folders containing images and detection results (.txt), create video file that shows detection results
 '''
+
 import os
 import cv2
 import tensorflow as tf

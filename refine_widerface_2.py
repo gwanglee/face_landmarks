@@ -26,7 +26,7 @@ from random import randrange
 from copy import deepcopy
 
 DEBUG = True
-DEBUG_DISPLAY_TIME = -1
+DEBUG_DISPLAY_TIME = 10
 
 tf.app.flags.DEFINE_string('image_dir', '', 'Where the source WiderFaceDB images are'
                             'located. The image_Dir contains sub-folders of event scenes')

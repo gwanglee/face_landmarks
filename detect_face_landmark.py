@@ -244,9 +244,6 @@ if __name__ == '__main__':
     start_time = time()
     counter = 0
 
-    tracker = cv2.TrackerMOSSE_create()
-    is_tracker_init = False
-
     with detection_graph.as_default():
         with tf.Session(graph=detection_graph) as sess:
 
@@ -267,6 +264,10 @@ if __name__ == '__main__':
             image = None
             entry = None
             fr_no = 0
+
+            image_prev = None
+            point_prev = np.zeros((68, 2), dtype=np.float32)
+            point_curr = np.zeros((68, 2), dtype=np.float32)
 
             while more:
                 if cap:
@@ -290,6 +291,13 @@ if __name__ == '__main__':
 
                 image_draw = deepcopy(image)
                 image_np = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+                OW, OH = 320, 240
+                image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image_gray = cv2.resize(image_gray, (OW, OH))
+
+                if image_prev is not None:
+                    cv2.calcOpticalFlowPyrLK(image_prev, image_gray, point_prev, point_curr, winSize=(8, 8), maxLevel=2)
 
                 # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                 image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -336,24 +344,6 @@ if __name__ == '__main__':
 
                     cv2.rectangle(image_draw, (l, t), (r, b), (0, 255, 0), 2)       # green: expanded
 
-                    if i == 0 and tracker is not None:
-                        w = r - l
-                        h = b - t
-
-                        if is_tracker_init:
-                            tres, tbox = tracker.update(image)
-
-                            if tres:
-                                tbox = [int(tbox[0]), int(tbox[1]), int(tbox[0] + tbox[2]), int(tbox[1] + tbox[3])]
-                                cv2.rectangle(image_draw, (tbox[0], tbox[1]), (tbox[2], tbox[3]), (0, 255, 255), 2)
-                                crop_boxes.append(tbox)
-
-                        if fr_no % TRACK_FOR_EVERY_N_FRAMES == 0:
-                            tracker = cv2.TrackerMOSSE_create()
-                            initres = tracker.init(image, (l, t, w, h))
-                            is_tracker_init = True
-                            print('tracker inited at %d' % fr_no, initres)
-
                 for i, box in enumerate(crop_boxes):
                     if landmark_estimator:
                         if i < LANDMARK_BATCHSIZE:
@@ -371,7 +361,15 @@ if __name__ == '__main__':
 
                     for i, box in enumerate(crop_boxes):
                         face_landmarks.append({'face': box, 'landmark': landmarks[i]})
-                        draw_landmarks(image_draw, box, landmarks[i], COLORS[i])
+                        # draw_landmarks(image_draw, box, landmarks[i], COLORS[i])
+
+                        if i == 0:
+                            H, W = box[3] - box[1], box[2] - box[0]
+                            for j, p in enumerate(landmarks[i]):
+                                point_prev[j][0] = (box[0] + p[0] * W) / WIDTH * OW
+                                point_prev[j][1] = (box[1] + p[1] * H) / HEIGHT * OH
+
+                                cv2.circle(image_draw, (int(point_curr[j][0] / OW * WIDTH), int(point_curr[j][1] / OH * HEIGHT)), 2, COLORS[i+1])
 
                     if FLAGS.write_txt_dir and not LIVE_FEED:
                         save_dir = os.path.join(entry['folder'], WRITE_TXT_DIR)
@@ -390,6 +388,8 @@ if __name__ == '__main__':
                 if key == 113 or key == 120:
                     video_writer.release()
                     break
+
+                image_prev = deepcopy(image_gray)
 
                 fr_no += 1
 

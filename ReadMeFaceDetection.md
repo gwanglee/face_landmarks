@@ -1,6 +1,6 @@
 # Making Face Detector for Landmark Detection
 ##1. 학습 데이터 생성
-- WiderFace DB와 자체 DB를 학습에 이용하며, spec에 맞는 크기의 얼굴만 DB에 포함되도록 DB를 refine하는 과정을 거친다.
+- WiderFace DB와 자체 DB를 학습에 이용하며, spec에 맞는 크기의 얼굴만 DB에 포함되도록 DB를 refine 하는 과정을 거친다.
 
     - 가장 작은 크기 얼굴이 프레임 너비의 10%가 되도록 image를 crop 하고 ground truth 를 변경한다 (use *refine_widerface_2.py*).
     
