@@ -10,9 +10,9 @@
     - *extract_landmark_training_data.py*: 원본 dataset 에서 얼굴 검출 후 검출된 영역의 영상 저장 + 검출된 영역으로 landmark 좌표 normalize 하여 저장
         - Argument 입력은 구현되어 있지 않고, 필요한 부분이 script 앞부분에 아래와 같이 정의되어 있음. 필요한 설정 변경 후 *extract_landmark_data.py* 실행하여 데이터 변환 진행.
             ~~~
-            MIN_CONF = 0.3      # 얼굴 검출 시 Confidence
-            MIN_OVERLAP = 0.3   # 얼굴 검출 시 IOU threshold: face의 ground truth가 없기 때문에, landmark points의 bounding box와 비교
-            EXTEND = True       # 검출된 얼굴 영역 영상 저장 시 영역을 확장할 것인지 결정 
+            MIN_CONF = 0.3      # 얼굴 검출의 confidence threshold
+            MIN_OVERLAP = 0.3   # IOU threshold: face의 ground truth가 없기 때문에, landmark points의 bounding box와 비교
+            EXTEND = True       # 검출된 얼굴 영역 영상 저장 시 영역 확장 여부 
             EXTEND_RATIO = 0.1  # 검출된 얼굴 영역의 확장 시 확장 크기를 결정 (0.1 이면 10% 확장하여 저장)
             
             ROTATE = True       # rotation augmentation 을 사용할 것인지
@@ -22,7 +22,7 @@
             # todo: add jittering?
             
             WRITE_PATH = '/Users/gglee/Data/Landmark/export/0424'   # Crop된 patch와 landmark annotation을 저장할 폴더
-            # RAND_FACTOR = 16.0        # Multi-PIE의 경우 양이 많기 때문에 RAND_FACTOR의 비율로 sampling 하여 이용
+            # RAND_FACTOR = 16.0        # Multi-PIE의 경우 양이 많기 때문에 RAND_FACTOR의 비율로 sampling 하여 이용했음
             
             IMAGES_DIR_PATHS = [    # 학습 data를 추출하기 위한 원본 학습 data가 저장되어 있는 위치
                     '/Users/gglee/Data/Landmark/300W/01_Indoor',
@@ -36,22 +36,22 @@
         - Script 실행 후 target directory 에 얼굴 영역의 영상은 .png 파일로 저장된다. Landmark annoation 은 영상과 동일한 이름의 .npts, .cpts 확장자로 저장된다.
             - .npts: landmark point 좌표가 0 에서 1 사이로 정규화 된다.
             - .cpts: landmark point 좌표가 -1 에서 1 사이로 정규화 된다.
-    - *make_landmark_tfrecord.py*: 검출된 얼굴 영역 patch와 landmark annotation (.txt)로부터 .tfrecord 를 생성한다.
+    - *make_landmark_tfrecord.py*: 검출된 얼굴 영역 patch와 landmark annotation 으로부터 .tfrecord 를 생성한다.
         - 데이터 경로 등 필요한 설정은 main 함수에 다음과 깉이 정의되어 있다. 필요한 부분 수정 후 *make_landmark_tfrecord.py* 를 실행하여 tfrecord 파일를 생성한다.
-        ~~~
-        DATA_PATH = '/Users/gglee/Data/Landmark/export/0424'    # 얼굴 영상과 point annotation이 저장되어 있는 폴더 경로
-        TRAIN_RATIO = 0.9                                       # Training data와 validation data 분할을 위한 비율
-        USE_GRAY=True                                           # deprecated: gray color 변환은 경우 학습 코드에서 tfrecord parsing time에 실행하는 것으로 변경
-                                                                # why need gray? 참고 논문이 gray 입력으로 되어있어, 성능에 차이 보이는지 확인 위해 gray도 시도 -> rgb가 더 좋은 성능 보임
-        SIZE = 56                                               # landmark 검출 network의 입력 size
-    
-        TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.train.tfrecord' % SIZE     # train tfrecord 저장 경로
-        VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.val.tfrecord' % SIZE         # validation tfrecord 저장 경로
-        ~~~
+            ~~~
+            DATA_PATH = '/Users/gglee/Data/Landmark/export/0424'    # 얼굴 영상과 point annotation이 저장되어 있는 폴더 경로
+            TRAIN_RATIO = 0.9                                       # Training data와 validation data 분할을 위한 비율
+            USE_GRAY=True                                           # deprecated: gray color 변환은 경우 학습 코드에서 tfrecord parsing time에 실행하는 것으로 변경
+                                                                    # why need gray? 참고 논문이 gray 입력으로 되어있어, 성능에 차이 보이는지 확인 위해 gray도 시도 -> rgb가 더 좋은 성능 보임
+            SIZE = 56                                               # landmark 검출 network의 입력 size
+        
+            TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.train.tfrecord' % SIZE     # train tfrecord 저장 경로
+            VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.val.tfrecord' % SIZE         # validation tfrecord 저장 경로
+            ~~~
 
 ## 2. Training
 - *train_slim.py* 를 이용하여 학습한다 (*script/run_train_slim_MMDD.sh* 참고)
-- *train_slim.py* 에 사용할 수 있는 argument 는 다음과 같다.
+- *train_slim.py* 에 사용할 수 있는 인자는 다음과 같다.
     ~~~
     tf.app.flags.DEFINE_string('train_dir', '/home/gglee/Data/Landmark/train', '학습된 모델을 저장할 경로')
     tf.app.flags.DEFINE_string('train_tfr', '/home/gglee/Data/160v5.0322.train.tfrecord', '.tfrecord for training')
@@ -93,8 +93,15 @@
 - 학습 시 *train_dir* 내에 *train_settin.txt* 가 생성되며, 학습에 사용된 입력 설정을 저장하고 있다.
 
 ## 3. PC에서 검증
-- 학습된 model을 실행시켜 보기 위해서는 detect_face_landmark.py  이용한다.
-- 학습된 model의 성능 평가를 위해서는 evaluate_landmark_model.py 를 이용한다.
+- 학습된 model을 실행시켜 보기 위해서는 *detect_face_landmark.py* 를  이용한다.
+    - *face_checkpoint_dir*: face detector 의 폴더 경로 (fronzen_inference_graph.pb가 해당 폴더 내에 있다고 가정)
+    - *landmark_checkpoint_path*: 학습된 모델 (ckpt)의 경로
+        ~~~
+        python detect_face_landmark.py \
+                --face_checkpoint_dir=/Users/gglee/Data/TFModels/0515/ssd_face_128_v13/freeze/ \
+                --landmark_checkpoint_path=/Users/gglee/Data/Landmark/train/0403_gpu1/x103_l1_sgd_0.003_lrd_0.6_200k_bn_l2_0.005/model.ckpt-900000
+        ~~~
+- 학습된 model의 성능 평가를 위해서는 *evaluate_landmark_model.py* 를 이용한다.
     - Argument로는 *tfrecord* 와 *models_dir* 을 전달한다.
     - *models_dir*: *models_dir* 의 sub-folders 에 학습된 landmark 모델이 저장되어 있다 (여러 설정으로 학습을 진행하는 경우가 많아 한번에 평가하기 위해 root dir 을 지정) 
         ~~~
