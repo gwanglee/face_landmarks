@@ -3,12 +3,9 @@
 import tensorflow as tf
 import numpy as np
 import os
-from PIL import Image, ImageDraw
-import psutil
 import shutil
 
-import net
-from random import shuffle
+from model import net
 
 CH = 3
 INPUT_SIZE = 56

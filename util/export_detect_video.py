@@ -5,7 +5,7 @@ For folders containing images and detection results (.txt), create video file th
 import os
 import cv2
 import tensorflow as tf
-from detect_face_landmark import read_detection
+from model.detect_face_landmark import read_detection
 
 flags = tf.app.flags
 flags.DEFINE_string('images', None,

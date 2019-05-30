@@ -21,17 +21,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from shutil import copyfile
-
 import os
 import sys
 import cv2
 
 import tensorflow as tf
-import widerface_explorer
-from random import randrange
-from copy import deepcopy
-from operator import itemgetter
+from data import widerface_explorer
 
 DEBUG = False
 DEBUG_DISPLAY_TIME = 10

@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 from copy import deepcopy
-from face_detector import Detector
+from model.face_detector import Detector
 from random import random
 
 DEBUG = True

@@ -28,7 +28,7 @@ import sys
 import cv2
 
 import tensorflow as tf
-import widerface_explorer
+from data import widerface_explorer
 from random import randrange
 from copy import deepcopy
 from operator import itemgetter

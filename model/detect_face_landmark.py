@@ -6,7 +6,7 @@ import cv2
 import inference as infer
 from copy import deepcopy
 from operator import itemgetter
-from evaluate_landmark_model import  load_settings
+from util.evaluate_landmark_model import  load_settings
 
 
 '''

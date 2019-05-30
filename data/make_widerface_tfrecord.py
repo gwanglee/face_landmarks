@@ -27,14 +27,13 @@ from __future__ import print_function
 
 import hashlib
 import io
-import sys
 import cv2
 from random import shuffle
 import tensorflow as tf
 import PIL.Image
 import os
 
-import widerface_explorer
+from data import widerface_explorer
 
 # sys.path.append('./models/research')
 # sys.path.append('./models/research/slim')

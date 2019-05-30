@@ -1,8 +1,8 @@
 import tensorflow as tf
-import net
+from model import net
 import os
 import math
-import data_landmark as data
+from data import data_landmark as data
 
 # https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
 

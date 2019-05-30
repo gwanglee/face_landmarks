@@ -4,7 +4,7 @@ import numpy as np
 import sys
 sys.path.append('..')
 
-import net
+from model import net
 
 slim = tf.contrib.slim
 

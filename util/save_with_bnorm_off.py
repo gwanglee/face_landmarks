@@ -3,11 +3,8 @@ Used to convert a trained landmark model to .tflite model
 '''
 
 import tensorflow as tf
-import data_landmark as data
-import net
+from model import net
 import os
-import numpy as np
-import cv2
 from operator import itemgetter
 
 slim = tf.contrib.slim

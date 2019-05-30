@@ -5,7 +5,7 @@ from __future__ import print_function
 import cv2
 from random import shuffle
 import tensorflow as tf
-import train
+from model import train
 import os
 import numpy as np
 

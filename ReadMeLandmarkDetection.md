@@ -94,7 +94,7 @@
 
 ## 3. PC에서 검증
 - 학습된 model을 실행시켜 보기 위해서는 *detect_face_landmark.py* 를  이용한다.
-    - *face_checkpoint_dir*: face detector 의 폴더 경로 (fronzen_inference_graph.pb가 해당 폴더 내에 있다고 가정)
+    - *face_checkpoint_dir*: face detector 의 폴더 경로 (fronzen_inference_graph.pb가 해당 폴더 내에 있다고 가정하고 있음)
     - *landmark_checkpoint_path*: 학습된 모델 (ckpt)의 경로
         ~~~
         python detect_face_landmark.py \

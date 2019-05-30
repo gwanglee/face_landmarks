@@ -2,8 +2,8 @@
 '''
 
 import tensorflow as tf
-import data_landmark as data
-import net
+from data import data_landmark as data
+from model import net
 import os
 import numpy as np
 import cv2

@@ -8,7 +8,7 @@ import tensorflow as tf
 import numpy as np
 import random
 from data.convert_voc_xml_to_wider_format import parse_xml
-from refine_widerface import get_iou
+from data.refine_widerface import get_iou
 
 flags = tf.app.flags
 flags.DEFINE_string('images_dir', None,
