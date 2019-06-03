@@ -189,7 +189,8 @@ def refine_widerface_db(db_path, gt_path, write_db_path, write_gt_path, REL_TH):
                2) w(smallest) / w(bbox(all)) ==> bbox as the whole image
             '''
             if (smallest is None and largest is None) or (len(large) == 0 and small_largest['w'] < ABS_TH*0.5):       #
-                IS_NEGATIVE = True
+                # IS_NEGATIVE = True
+                IS_NEGATIVE = False     # will use no negative
             elif smallest['w'] > MIN_FACE_TH * W and MIN_ASPECT_RATIO <= W/float(H) < MAX_ASPECT_RATIO:       # smallest face > threshold -> safe to use
                 CROP_FOUND = True
                 CROP_ANNOS = annos

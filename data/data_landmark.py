@@ -1,7 +1,20 @@
+#-*- coding: utf-8 -*-
+'''
+Helper to use tfrecord for facial landmark training
+'''
+
 import tensorflow as tf
 import numpy as np
 
 def _parse_function(example_proto, input_size=56, is_color=True, augment=False):
+    '''
+    tfrecord 에서 데이터를 파싱하는 함수
+    :param example_proto:
+    :param input_size: input size to landmark network
+    :param is_color: True if input is color (3 channels), False if gray (1 channel)
+    :param augment: True to use augmentation (brightness, contrast, hue, saturation)
+    :return:
+    '''
     CH = 3
     SIZE = input_size
     NUM_LANDMARKS = 68

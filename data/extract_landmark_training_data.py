@@ -1,3 +1,11 @@
+#-*- coding: utf-8 -*-
+
+'''
+Landmark dataset 에서 training data (face patch, landmark points)를 추출하기 위한 script.
+Landmark dataset (300W, Menpo, Multi-PIE)는 원 영상에 대한 68 landmark points가 annotate 되어 있다. 따라서, 얼굴 검출기를 적용 하여
+얼굴 영역만을 잘라내고, 잘라낸 얼굴 영역에 대해 landmark 좌표를 normalize 해야 한다.
+'''
+
 import os
 import cv2
 import numpy as np
@@ -268,6 +276,13 @@ def is_inside(in_box, out_box):
 
 
 def get_rotated_image_and_points(image, points, angle):
+    '''
+    학습 데이터를 in-plane rotation 시키기 위한 함수 (for augmentation)
+    :param image: 원본 영상
+    :param points: landmark 좌표
+    :param angle: 회전할 각도
+    :return: 회전된 영상 (rotated)와 해당 영상에서 landmark 점의 좌표 (mat_rot_pts)
+    '''
     H, W, _ = image.shape
     mat_rot = cv2.getRotationMatrix2D((W / 2, H / 2), angle, 1.0)
     rotated = cv2.warpAffine(image, mat_rot, (W, H))
@@ -285,6 +300,14 @@ def get_rotated_image_and_points(image, points, angle):
 
 
 def detect_face(detector, image, threshold=0.1):
+    '''
+    영상에서 얼굴을 검출한다.
+    :param detector: face detector to use
+    :param image: image to detect face
+    :param threshold: confidence threshold for face detection
+    :return: list of dict of faces {'x', 'y', 'w', 'h', 'conf'}
+    '''
+
     H, W, _ = image.shape
     resize2detect = cv2.cvtColor(cv2.resize(image, (DETECTOR_INPUT_SIZE, DETECTOR_INPUT_SIZE)), cv2.COLOR_BGR2RGB)
     imtensor = np.expand_dims(resize2detect, 0)
@@ -300,6 +323,13 @@ def detect_face(detector, image, threshold=0.1):
 
 
 def get_box_to_crop(image, points):
+    '''
+    영상에서 학습에 사용할 얼굴 영역 좌표를 추출한다. 우선 얼굴을 검출하고, 검출된 얼굴 중에서 landmark points의 bounding box 와 가장 overlap 이 큰 검출 box 를 찾는다.
+    검출된 face box 가 충분히 confident 하면 해당 box 의 좌표를 return 한다. Return 되는 face box 의 좌표는 square_and_expand 함수를 통해 확장된 영역이다.
+    :param image: 입력 영상
+    :param points: image 에 대한 landmark annotation
+    :return: 얼굴 영역의 box 좌표 {'x', 'y', 'w', 'h', 'conf'}
+    '''
     if DEBUG:
         image_debug = deepcopy(image)
 
@@ -372,12 +402,19 @@ def get_box_to_crop(image, points):
 
 
 def save_training_data(image, points, crop_box, save_path, basename):
+    '''
+    원본 영상에서 얼굴 영역의 box가 결정되었을 때, 이를 학습용 별도 파일로 저장한다. 저장된 파일은 이후 .tfrecord 를 만드는 데 이용된다.
+    :param image: input image
+    :param points: landmark point annoation
+    :param crop_box: face box to crop (to use as the training data)
+    :param save_path: where to save the patch
+    :param basename: image 파일의 basename
+    :return: basename.png - 얼굴 영상, basename.npts - [0, +1]로 정규화된 landmark 좌표, basename.cpts - [-1, +1]로 정규화된 landmark 좌표
+    '''
 
     cropped = image[int(crop_box['y']):int(crop_box['y'] + crop_box['h']),
               int(crop_box['x']):int(crop_box['x'] + crop_box['w']), :]
 
-    # arr = np.array(cropped).astype(dtype=np.uint8)
-    # arr.tofile(os.path.join(save_path, basename + '.img'))
     cv2.imwrite(os.path.join(save_path, basename + '.png'), cropped)
 
 
@@ -389,25 +426,10 @@ def save_training_data(image, points, crop_box, save_path, basename):
     cpts = np.array(cnormed)
     cpts.tofile(os.path.join(save_path, basename + '.cpts'))
 
-    # H, W = cropped.shape[0:2]
-    # for p in normed:
-    #     l, t, r, b = int(p[0] * W) - 1, int(p[1] * H) - 1, int(p[0] * W) + 1, int(p[1] * H) + 1
-    #     cv2.rectangle(cropped, (l, t), (r, b), (0, 0, 255))
-    #
-    # cv2.imwrite(os.path.join(WRITE_PATH, basename + '.jpg'), cropped)
-
 
     if DEBUG and random() < 0.01:
         cv2.imshow('cropped', cropped)
         cv2.waitKey(1)
-    # if DEBUG:
-    #     cv2.imshow('cropped', cropped)
-    #     cv2.imshow('image', image_debug)
-    #     cv2.waitKey(1)
-    # elif i % 10 == 0:
-    #     print('[%d / %d]: %s' % (i, len(samples), s[0]))
-    #     cv2.imshow('patch', cropped)
-    #     key = cv2.waitKey(10)
 
 
 if __name__ == '__main__':
@@ -416,11 +438,10 @@ if __name__ == '__main__':
     if not os.path.exists(WRITE_PATH):
         os.makedirs(WRITE_PATH)
 
-    if DEBUG:
-        path_less_point = 'less_point'
-        path_border = 'border'
-        path_no_match = 'no_match'
-        path_crop = 'crop'
+    path_less_point = 'less_point'
+    path_border = 'border'
+    path_no_match = 'no_match'
+    path_crop = 'crop'
 
     cnt_less_point = 0
     cnt_no_overlap = 0
@@ -450,7 +471,7 @@ if __name__ == '__main__':
                     cv2.imwrite(os.path.join(save_path, os.path.basename(s[0])), image)
                 continue
 
-            crop_box = get_box_to_crop(image, points)
+            crop_box = get_box_to_crop(image, points)       # 원본 영상에서 얼굴 검출 후 data 저장
             if not crop_box:
                 cnt_no_overlap += 1
                 continue
@@ -458,7 +479,7 @@ if __name__ == '__main__':
                 save_training_data(image, points, crop_box, WRITE_PATH, basename)
                 cnt_generated += 1
 
-            if ROTATE:
+            if ROTATE:                                      # Rotation augmentation 사용 시 한번 더 수행
                 angle = random()*MAX_ROTATE*2 - MAX_ROTATE
                 image, points = get_rotated_image_and_points(image, points, angle)
 
@@ -470,14 +491,6 @@ if __name__ == '__main__':
                     save_training_data(image, points, crop_box, WRITE_PATH, basename + '_r')
                     cnt_generated += 1
 
-                # if DEBUG:
-                #     cv2.rectangle(image_debug, (int(pbbox['x']), int(pbbox['y'])),
-                #                   (int(pbbox['x'] + pbbox['w']), int(pbbox['y'] + pbbox['h'])),
-                #                   (255, 0, 255), 1)
-                #     cv2.rectangle(image_debug, (int(cbox['x']), int(cbox['y'])), (int(cbox['x'] + cbox['w']),
-                #                                                                   int(cbox['y'] + cbox['h'])),
-                #                   (0, 255, 0), 1)
-                #     cv2.imshow('debug', image_debug)
 
     print('generated: %d, border_out: %d, no_overlap: %d, less_point: %d, total: %d'%
           (cnt_generated, cnt_on_the_border, cnt_no_overlap, cnt_less_point, cnt_total))
