@@ -1,65 +1,20 @@
+#-*- coding: utf-8 -*-
+'''
+VOC 포맷으로 되어있는 annotation (.xml)을 WiderFace 형태로 변환한다.
+'''
+
 import os
 from xml.etree import ElementTree
 from random import shuffle
 import cv2
-from operator import itemgetter
-import tensorflow as tf
-import PIL.Image
-import io
-import hashlib
-import sys
-sys.path.append('/Users/gglee/Develop/models/research')
-sys.path.append('/Users/gglee/Develop/models/research/slim')
-
-from object_detection.utils import dataset_util
-
-# def prepare_example(image_path, boxes):
-#     with tf.gfile.GFile(image_path, 'rb') as fid:
-#         encoded_jpg = fid.read()
-#         encoded_jpg_io = io.BytesIO(encoded_jpg)
-#         image = PIL.Image.open(encoded_jpg_io)
-#         if image.format != 'JPEG':
-#             print (image.format)
-#             return None
-#         key = hashlib.sha256(encoded_jpg).hexdigest()
-#         width, height = image.size
-#
-#         xmin, ymin, xmax, ymax = [], [], [], []
-#         classes, classes_text = [], []
-#         difficult_obj = []
-#
-#         for b in boxes:
-#             xmin.append(float(b[0]) / width)
-#             ymin.append(float(b[1]) / height)
-#             xmax.append(float(b[2]) / width)
-#             ymax.append(float(b[3]) / height)
-#             label = 'face'
-#             classes.append(1)
-#             classes_text.append(label)
-#             difficult_obj.append(0)
-#
-#         example = tf.train.Example(features=tf.train.Features
-#             (feature={
-#             'image/height': dataset_util.int64_feature(height),
-#             'image/width': dataset_util.int64_feature(width),
-#             'image/filename': dataset_util.bytes_feature(image_path.encode('utf8')),
-#             'image/source_id': dataset_util.bytes_feature(image_path.encode('utf8')),
-#             'image/key/sha256': dataset_util.bytes_feature(key.encode('utf8')),
-#             'image/encoded': dataset_util.bytes_feature(encoded_jpg),
-#             'image/format': dataset_util.bytes_feature('jpeg'.encode('utf8')),
-#
-#             'image/object/bbox/xmin': dataset_util.float_list_feature(xmin),
-#             'image/object/bbox/xmax': dataset_util.float_list_feature(xmax),
-#             'image/object/bbox/ymin': dataset_util.float_list_feature(ymin),
-#             'image/object/bbox/ymax': dataset_util.float_list_feature(ymax),
-#             'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
-#             'image/object/class/label': dataset_util.int64_list_feature(classes),
-#             'image/object/difficult': dataset_util.int64_list_feature(difficult_obj),
-#         }))
-#         return example
 
 
 def parse_xml(xml_path):
+    '''
+    VOC annotation을 읽어들인 후 해당 내용을 dictionary 에 담아 반환한다. XML 파일 내에 face class 만 있다고 가정한다 (다른 class 는 무시된다).
+    :param xml_path: VOC annotation 경로
+    :return: list of dict of {'xmin', 'ymin', 'xmax', 'ymax', 'width', 'height' }
+    '''
     root = ElementTree.parse(xml_path).getroot()
 
     width, height = 0, 0
@@ -88,22 +43,11 @@ def parse_xml(xml_path):
     return faces
 
 
-def get_bbox(objs):
-    if objs is not None and len(objs) > 0:
-        left = sorted(objs, key=itemgetter('xmin'))[0]['xmin']
-        right = sorted(objs, key=itemgetter('xmax'), reverse=True)[0]['xmax']
-        top = sorted(objs, key=itemgetter('ymin'))[0]['ymin']
-        bottom = sorted(objs, key=itemgetter('ymax'), reverse=True)[0]['ymax']
-
-        return {'xmin': left, 'ymin': top, 'xmax': right, 'ymax': bottom}
-    else:
-        return None
-
-
 if __name__=='__main__':
-    IMAGES_ROOT = '/Users/gglee/Data/face_ours'
+    IMAGES_ROOT = '/Users/gglee/Data/face_ours'                 # VOC format data (image, xml) 경로
+    WRITE_FILE = '/Users/gglee/Data/face_ours/face_ours.txt'    # WiderFace format 으로 저장할 gt 파일의 경로
+
     image_lists = []
-    WRITE_FILE = '/Users/gglee/Data/face_ours/face_ours.txt'
 
     for dir, subs, files in os.walk(IMAGES_ROOT):
         for f in files:
@@ -141,33 +85,5 @@ if __name__=='__main__':
                 else:
                     wf.write('%d\r\n' % 0)
 
-                    # min_size = 0.08
-                    # small = filter(lambda x: x['width'] < min_size, bbox)
-                    # large = filter(lambda x: x['width'] >= min_size, bbox)
-                    #
-                    # abb = get_bbox(bbox)
-                    # sbb = get_bbox(small)
-                    # lbb = get_bbox(large)
-
-                    # if both bbox are None -> background
-                    # if large_bbox only --> happy
-                    # if small bbox only --> see if wd can use it after crop
-                    # if small bbox & large bbox does not overlap --> crop to include large bbox only
-                    # is small & large overlap -> drop it
-
-                    # if abb is not None:
-                    #     cv2.rectangle(image, (int(abb['xmin']*width), int(abb['ymin']*height)),
-                    #                   (int(abb['xmax']*width), int(abb['ymax']*height)), (255, 255, 255), 1)
-                    #
-                    # if sbb is not None:
-                    #     cv2.rectangle(image, (int(sbb['xmin']*width), int(sbb['ymin']*height)),
-                    #                   (int(sbb['xmax']*width), int(sbb['ymax']*height)), (0, 255, 0), 1)
-                    # if lbb is not None:
-                    #     cv2.rectangle(image, (int(lbb['xmin'] * width), int(lbb['ymin'] * height)),
-                    #               (int(lbb['xmax'] * width), int(lbb['ymax'] * height)), (255, 0, 0), 1)
-
-
-                # if width > 1024:
-                #     image = cv2.resize(image, (1024, 768))
-                # cv2.imshow('image', image)
-                # cv2.waitKey(10)
+                cv2.imshow('image', image)
+                cv2.waitKey(5)
