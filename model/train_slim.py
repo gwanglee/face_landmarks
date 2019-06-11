@@ -1,8 +1,11 @@
 import tensorflow as tf
 from model import net
+from model import mnet2
 import os
 import math
 from data import data_landmark as data
+
+import sys
 
 # https://github.com/tensorflow/models/blob/master/research/slim/train_image_classifier.py
 
@@ -45,6 +48,8 @@ tf.app.flags.DEFINE_float('regularizer_lambda_2', 0.004, 'Lambda for the regular
 tf.app.flags.DEFINE_integer('quantize_delay', -1, 'Number of steps to start quantized training. -1 to disable it')
 tf.app.flags.DEFINE_float('depth_multiplier', 2.0, '')
 tf.app.flags.DEFINE_float('depth_gamma', 1.0, '')
+
+tf.app.flags.DEFINE_string('basenet', 'lan', '[lan, mnet2]')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -325,8 +330,9 @@ def train_step_fn(sess, train_op, global_step, train_step_kwargs):
     total_loss, should_stop = slim.learning.train_step(sess, train_op, global_step, train_step_kwargs)
 
     if train_step_fn.step % 1000 == 0:    # validation for every 1000 steps
-        validation_loss = sess.run([val_loss])
-        print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
+        print('>> global step {}: loss={}'.format(train_step_fn.step, total_loss))
+        # validation_loss = sess.run([val_loss])
+        # print('>> global step {}: train={}, validation={}'.format(train_step_fn.step, total_loss, validation_loss))
 
     return total_loss, should_stop
 
@@ -389,14 +395,17 @@ if __name__=='__main__':
 
         with tf.variable_scope('model') as scope:
             intensor = tf.identity(image, 'input')
-            predictions, _ = net.lannet(intensor, is_training=True, normalizer_fn=norm_fn, normalizer_params=norm_params,
-                                        regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
-            val_pred, _ = net.lannet(val_imgs, is_training=False, normalizer_fn=norm_fn, normalizer_params=norm_params,
-                                     regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
+            if FLAGS.basenet == 'lan':
+                predictions, _ = net.lannet(intensor, normalizer_fn=norm_fn, normalizer_params=norm_params,
+                                            regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
+                val_pred, _ = net.lannet(val_imgs, normalizer_fn=norm_fn, normalizer_params={'is_training': False},
+                                         regularizer=regularizer, depth_mul=FLAGS.depth_multiplier, depth_gamma=FLAGS.depth_gamma)
+            elif FLAGS.basenet == 'mnet2':
+                predictions, _ = mnet2.mnet2(intensor)
 
         loss = _config_loss_function(points, predictions)
         total_loss = slim.losses.get_total_loss()
-        val_loss = l2_loss(val_pts, val_pred)
+        # val_loss = l2_loss(val_pts, val_pred)
 
         global_step = slim.create_global_step()
 
@@ -420,7 +429,7 @@ if __name__=='__main__':
                                                      variables_to_train=trainable_vars)
         summaries = set([tf.summary.scalar('losses/total_loss', total_loss)])
         summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-        summaries.add(tf.summary.scalar('losses/validation', val_loss))
+        # summaries.add(tf.summary.scalar('losses/validation', val_loss))
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
         def init_fn(sess):
