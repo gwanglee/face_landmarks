@@ -5,8 +5,8 @@
     - 가장 작은 크기 얼굴이 프레임 너비의 10%가 되도록 image를 crop 하고 ground truth 를 변경한다 (use *refine_widerface_2.py*).
     
         ~~~
-        python refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0522_10% --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0522_10%.txt --min_rel_size=0.1
-        python refine_widerface_2.py --image_dir=/Users/gglee/Data/face_ours/ --gt_path=/Users/gglee/Data/face_ours/face_ours.txt --output_image_dir=/Users/gglee/Data/face_train --output_gt_path=/Users/gglee/Data/face_train/gt.txt --min_rel_size=0.1
+        python data/refine_widerface_2.py --image_dir=/Users/gglee/Data/WiderFace/WIDER_train/images/ --gt_path=/Users/gglee/Data/WiderFace/wider_face_split/wider_face_train_bbx_gt.txt --output_image_dir=/Users/gglee/Data/WiderRefine/wider_train_0522_10% --output_gt_path=/Users/gglee/Data/WiderRefine/wider_train_0522_10%.txt --min_rel_size=0.1
+        python data/refine_widerface_2.py --image_dir=/Users/gglee/Data/face_ours/ --gt_path=/Users/gglee/Data/face_ours/face_ours.txt --output_image_dir=/Users/gglee/Data/face_train --output_gt_path=/Users/gglee/Data/face_train/gt.txt --min_rel_size=0.1
         ~~~
         - image_dir 과 gt_path 는 원 영상과 원 ground truth file (WiderFace format)이고, 변경된 영상과 ground truth 는 output_image_dir 과 output_gt_path 에 생성된다.
         - min_rel_size는 수정된 DB에서 얼굴의 최소 크기를 설정한다. 0.1인 경우 학습 DB 내 얼굴이 영상의 너비 대비 10% 이상 되도록 조절한다.

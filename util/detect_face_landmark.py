@@ -3,10 +3,10 @@ import os
 import tensorflow as tf
 from time import time
 import cv2
-import inference as infer
+import model.inference as infer
 from copy import deepcopy
 from operator import itemgetter
-from util.evaluate_landmark_model import  load_settings
+from util.evaluate_landmark_model import  load_landmark_settings
 
 
 '''
@@ -73,30 +73,32 @@ def prepare_filelist(folder_path):
     :param folder_paths:
     :return:
     '''
+
     assert os.path.isdir(folder_path)
     assert os.path.exists(folder_path)
 
     images_to_test = []
 
-    for f in os.listdir(folder_path):
-        filepath = os.path.join(folder_path, f)
-
-        if os.path.isfile(filepath):
-            if filepath.endswith('jpg') or filepath.endswith('png'):
+    for root, dirs, files in os.walk(IMAGES_DIR):
+        for f in files:
+            if f.split('.')[-1].lower() in ['jpg', 'png']:
+                filepath = os.path.join(root, f)
                 base, ext = f.split('.')
-                cur = {'folder': folder_path, 'basename': base, 'ext': ext}
+                cur = {'folder': os.path.dirname(filepath), 'basename': base, 'ext': ext}
                 images_to_test.append(cur)
+
+                # images_to_test.append(os.path.join(root, f))
 
     images_to_test = sorted(images_to_test, key=itemgetter('basename'))
 
     return images_to_test
 
 
-def write_detection(write_dir, basename, face_landmarks):
+def write_landmark(write_dir, basename, face_landmarks):
 
     assert os.path.exists(write_dir), 'Folder not exist: %s' % write_dir
 
-    with open(os.path.join(write_dir, basename + '.txt'), 'w') as wf:
+    with open(os.path.join(write_dir, basename + '.landmark.txt'), 'w') as wf:
         wf.write(entry['basename'] + '\n')
         wf.write('%d\n' % len(face_landmarks))
 
@@ -167,9 +169,8 @@ if __name__ == '__main__':
     LIVE_FEED = False
     TRACK_FOR_EVERY_N_FRAMES = 3
 
-    landmark_settings = load_settings(LANDMARK_CKPT_PATH)
-
     if LANDMARK_CKPT_PATH != '':
+        landmark_settings = load_landmark_settings(LANDMARK_CKPT_PATH)
         # assert os.path.exists(LANDMARK_CKPT_PATH), 'Landmark checkpoint not exist: %s' % LANDMARK_CKPT_PATH
         DEPTH_MULTIPLIER = landmark_settings['depth_multiplier']
         DEPTH_GAMMA = landmark_settings['depth_gamma']
@@ -183,6 +184,8 @@ if __name__ == '__main__':
                                               depth_multiplier=DEPTH_MULTIPLIER, depth_gamma=DEPTH_GAMMA,
                                               normalizer_fn=NORM_FN, normalizer_params=NORM_PARAM,
                                               batch_size=LANDMARK_BATCHSIZE)
+    else:
+        landmark_estimator = None
 
     # set sources
     image_to_test = []
@@ -223,11 +226,6 @@ if __name__ == '__main__':
     #     IS_ROOT = FLAGS.has_child_dirs
     #     images_to_test = prepare_filelist(IMAGES_DIR, IS_ROOT)
 
-    # if WRITE_DET_DIR:
-    #     if os.path.exists(WRITE_DET_DIR):
-    #         rmtree(WRITE_DET_DIR)
-    #     os.makedirs(WRITE_DET_DIR)
-
     # List of the strings that is used to add correct label for each box.
     # PATH_TO_LABELS = os.path.join('data', 'wider_label_map.pbtxt')
     NUM_CLASSES = 1
@@ -243,6 +241,12 @@ if __name__ == '__main__':
 
     start_time = time()
     counter = 0
+
+    save_dir = None
+    if FLAGS.write_txt_dir and not LIVE_FEED:
+        save_dir = WRITE_TXT_DIR
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, 0755)
 
     with detection_graph.as_default():
         with tf.Session(graph=detection_graph) as sess:
@@ -316,6 +320,20 @@ if __name__ == '__main__':
                 HEIGHT, WIDTH, _ = image.shape
                 crop_boxes = []
 
+                if save_dir:
+                    cur_dir = os.path.join(save_dir, entry['folder'].split('/')[-1])
+                    if not os.path.exists(cur_dir):
+                        os.makedirs(cur_dir)
+                    # fixme: write detection here
+                    with open(os.path.join(cur_dir, entry['basename'] + '.txt'), 'w') as wf:
+                        for idx, box in enumerate(boxes):
+                            if scores[idx] < 0.003:
+                                break
+
+                            l, t, r, b = int(box[1] * WIDTH), int(box[0] * HEIGHT), int(box[3] * WIDTH), int(
+                                box[2] * HEIGHT)
+                            wf.write('%f %f %f %f %f\n' % (l, t, r, b, scores[idx]))
+
                 for i, box in enumerate(boxes):
                     if scores[i] < FACE_SCORE_THRESHOLD:
                         continue
@@ -344,8 +362,9 @@ if __name__ == '__main__':
 
                     cv2.rectangle(image_draw, (l, t), (r, b), (0, 255, 0), 2)       # green: expanded
 
-                for i, box in enumerate(crop_boxes):
-                    if landmark_estimator:
+                face_landmarks = []
+                if landmark_estimator:
+                    for i, box in enumerate(crop_boxes):
                         if i < LANDMARK_BATCHSIZE:
                             l, t, r, b = box[0], box[1], box[2], box[3]
                             face = image[t:b, l:r, :]
@@ -354,10 +373,7 @@ if __name__ == '__main__':
                             patch = cv2.resize(face, (LANDMARK_INPUT_SIZE, LANDMARK_INPUT_SIZE))
                             patches[i, :, :, :] = ((np.asarray(patch).astype(np.float32))/255.0-1.0)
 
-                if LANDMARK_CKPT_PATH:
                     landmarks = np.reshape(np.squeeze(landmark_estimator.predict(patches)), (-1, 68, 2))
-
-                    face_landmarks = []
 
                     for i, box in enumerate(crop_boxes):
                         face_landmarks.append({'face': box, 'landmark': landmarks[i]})
@@ -371,12 +387,11 @@ if __name__ == '__main__':
 
                                 cv2.circle(image_draw, (int(point_curr[j][0] / OW * WIDTH), int(point_curr[j][1] / OH * HEIGHT)), 2, COLORS[i+1])
 
-                    if FLAGS.write_txt_dir and not LIVE_FEED:
-                        save_dir = os.path.join(entry['folder'], WRITE_TXT_DIR)
-                        if not os.path.exists(save_dir):
-                            os.mkdir(save_dir, 0755)
-
-                        write_detection(save_dir, entry['basename'], face_landmarks)
+                        if save_dir and landmark_estimator:
+                            cur_dir = os.path.join(save_dir, entry['folder'].split('/')[-1])
+                            if not os.path.exists(cur_dir):
+                                os.makedirs(cur_dir)
+                            write_landmark(save_dir, entry['basename'], face_landmarks)    # fixme: it stores landmark results --> need to save both (detection & landmark)
 
                 cv2.imshow("image", cv2.flip(image_draw, 1))
 

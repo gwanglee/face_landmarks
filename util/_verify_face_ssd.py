@@ -16,7 +16,7 @@ flags.DEFINE_string('face_checkpoint_dir', '/Users/gglee/Data/TFModels/128/ssd_f
 flags.DEFINE_string('label_map_path', './face_label.pbtxt',
                     'File path of the label_map file. It can be omitted for one class detection (face)')
 
-SAVE = False
+SAVE = True
 SAVE_WIDTH = 640
 SAVE_HEIGHT = 480
 
@@ -63,7 +63,14 @@ if __name__=='__main__':
     image_bg = cv2.imread(BG_PATH)
     image_bg = cv2.resize(image_bg, (1280, 960))
 
-    scales = [0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
+    min_scale = 0.2
+    max_scale = 2.8
+
+    scales = []
+    while min_scale < max_scale:
+        scales.append(min_scale)
+        min_scale *= 1.2
+    # scales = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0]
 
     FRAME_HEIGHT, FRAME_WIDTH = image_bg.shape[0:2]
     print('input_size: %d x %d' % (FRAME_WIDTH, FRAME_HEIGHT))
@@ -89,7 +96,7 @@ if __name__=='__main__':
                     face = cv2.resize(image_face, (int(w*s), int(h*s)))
 
                     PATCH_HEIGHT, PATCH_WIDTH = face.shape[0:2]
-                    STEP_X, STEP_Y = PATCH_WIDTH/5, PATCH_HEIGHT/5
+                    STEP_X, STEP_Y = max(15, PATCH_WIDTH/10), max(15, PATCH_HEIGHT/10)
 
                     offset_y = 0
 
@@ -150,6 +157,10 @@ if __name__=='__main__':
                         offset_y += STEP_Y
 
                     wf.write('\n')
-                    wf.write('%2.f, %2.f\n' % (sum(dw) / float(len(dw)), sum(dh) / float(len(dh))))
+                    try:
+                        wf.write('%2.f, %2.f\n' % (sum(dw) / float(len(dw)), sum(dh) / float(len(dh))))
+                    except ZeroDivisionError:
+                        wf.write('0.0, 0.0\n')
 
-    video_writer.release()
+    if video_writer:
+        video_writer.release()

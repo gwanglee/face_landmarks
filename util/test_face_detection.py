@@ -24,8 +24,8 @@ COLOR_UNMATCHED_DET = (0, 0, 130)
 COLOR_MATCHED_GT = (55, 255, 55)
 COLOR_UNMATCHED_GT = (0, 130, 0)
 
-IOU_TH = 0.3
-
+IOU_TH = 0.003
+CONF_TH = 0.5
 
 def draw_readable_text(image, text, pos, size):
     cv2.putText(image, text, (pos[0]-1, pos[1]), cv2.FONT_HERSHEY_SIMPLEX, size, (0, 0, 0))
@@ -54,6 +54,12 @@ def draw_grids(image, num_cell):
 
 
 def find_best_matching_gtbox(detection, answers):
+    '''
+
+    :param detection:
+    :param answers:
+    :return:
+    '''
     ious = map(lambda a: get_iou(detection, a), answers)
     max_index = np.argmax(np.asarray(ious))
     # print(ious, max_index)
@@ -155,7 +161,7 @@ if __name__=='__main__':
 
                 dets = []
                 for i, box in enumerate(boxes):
-                    if scores[i] < 0.5:
+                    if scores[i] < CONF_TH:
                         continue
                     dets.append({'l': box[1]*W, 't': box[0]*H, 'r': box[3]*W, 'b': box[2]*H, 'c': scores[i]})
 

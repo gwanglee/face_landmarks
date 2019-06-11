@@ -44,8 +44,8 @@ def parse_xml(xml_path):
 
 
 if __name__=='__main__':
-    IMAGES_ROOT = '/Users/gglee/Data/face_ours'                 # VOC format data (image, xml) 경로
-    WRITE_FILE = '/Users/gglee/Data/face_ours/face_ours.txt'    # WiderFace format 으로 저장할 gt 파일의 경로
+    IMAGES_ROOT = '/Users/gglee/Data/face_eval/data'                 # VOC format data (image, xml) 경로
+    WRITE_FILE = '/Users/gglee/Data/face_eval/gt.txt'    # WiderFace format 으로 저장할 gt 파일의 경로
 
     image_lists = []
 

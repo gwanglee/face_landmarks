@@ -17,7 +17,7 @@ tf.app.flags.DEFINE_string('models_dir', '/home/gglee/Data/Landmark/train/0408',
 
 FLAGS = tf.app.flags.FLAGS
 
-def load_settings(ckpt_path):
+def load_landmark_settings(ckpt_path):
     path_setting = os.path.join(os.path.dirname(ckpt_path), 'train_setting.txt')
     assert os.path.exists(path_setting) and os.path.isfile(
         path_setting), 'train_setting.txt not exist for [%s]' % ckpt_path
@@ -83,7 +83,7 @@ def paste_mosaic_patch(mosaic, index, patch, points, predicts, error, size=8):
 def evaluate(ckpt_path, tfr_path):
 
     # load train_setting
-    settings = load_settings(ckpt_path)
+    settings = load_landmark_settings(ckpt_path)
     normalizer_fn = settings['normalizer_fn']
     normalizer_params = settings['normalizer_params']
     depth_multiplier = settings['depth_multiplier']
