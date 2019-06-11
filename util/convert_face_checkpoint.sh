@@ -4,8 +4,8 @@ echo "Check if PYTHONPATH contains models/research:models/research/slim"
 echo "PYTHONPATH="$PYTHONPATH
 
 echo "Converting .ckpt to fronzen_graph"
-CKPT_PATH="/Users/gglee/Data/TFModels/0530/ssd_face_160_v23"
-CKPT_NAME="model.ckpt-485329"
+CKPT_PATH="/Users/gglee/Data/TFModels/0610/ssd_face_160_v23"
+CKPT_NAME="model.ckpt-520000"
 PIPELINE_CONFIG_NAME="pipeline.config"
 INPUT_SIZE=160
 

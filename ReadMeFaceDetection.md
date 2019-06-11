@@ -118,3 +118,25 @@
 
 - 생성된 tflite 및 box_prior.txt 파일을 안드로이드 소스코드의 assets 폴더에 복사하여 이용한다.
     - 여러 모델이 assets 폴더에 있을 경우 .tflite 파일은 java 코드 내에서 파일 명을 변경해서 이용 가능하나, box_prior.txt는 파일명을 설정하는 부분이 없음. 사용할 파일명을 box_prior.txt로 변경해서 이용해야 함
+    
+##4. Evaluation on PC
+- util/detect_face_landmark.py 를 이용하여 얼굴을 검출하고 결과를 write_txt_dir 폴더에 저장한다.
+- util/eval_wider_dets.py 를 이용하여 roc를 계산한다.
+    - det_root 하위에 여러 모델의 검출 결과를 포함해 두면, 결과를 하나의 그래프로 출력한다.
+    - gt_path 가 가리키는 txt 파일은 WiderFace DB 의 txt annotation 형식이다. 
+~~~
+NAME='ssd_face_128_v21'
+python util/detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/0610/$NAME/freeze \
+                                --images_dir=/Users/gglee/Data/face_eval/data \
+                                --write_txt_dir=/Users/gglee/Data/face_eval/det/$NAME \
+                                --disp=True
+
+NAME='ssd_face_128_v22'
+python util/detect_face_landmark.py --face_checkpoint_dir=/Users/gglee/Data/TFModels/0610/$NAME/freeze \
+                                --images_dir=/Users/gglee/Data/face_eval/data \
+                                --write_txt_dir=/Users/gglee/Data/face_eval/det/$NAME \
+                                --disp=True
+
+python util/eval_wider_dets.py --det_root=/Users/gglee/Data/face_eval/det --image_dir=/Users/gglee/Data/face_eval/data \
+                                --gt_path=/Users/gglee/Data/face_eval/data/gt.txt
+~~~
