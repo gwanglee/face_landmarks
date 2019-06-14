@@ -1,3 +1,9 @@
+#-*- coding: utf-8 -*-
+
+'''
+얼굴 영역의 image patch 와 landmark annoation 이 준비되어 있을 때, 이를 tfrecord 로 변환한다.
+'''
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -54,13 +60,13 @@ def make_tfrecord(tfr_path, lists, use_gray=False, size=56):
 
 
 def main(_):
-    DATA_PATH = '/Users/gglee/Data/Landmark/export/0424'
+    DATA_PATH = '/Users/gglee/Data/Landmark/export/0612'
     TRAIN_RATIO = 0.9
-    USE_GRAY=True
-    SIZE = 56
+    USE_GRAY=False
+    SIZE = 128
 
-    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.train.tfrecord' % SIZE
-    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/0424.%d.gray.val.tfrecord' % SIZE
+    TRAIN_TFR_PATH = '/Users/gglee/Data/Landmark/export/0612.%d.train.tfrecord' % SIZE
+    VAL_TFR_PATH = '/Users/gglee/Data/Landmark/export/0612.%d.val.tfrecord' % SIZE
 
     list_files = train.prepare_data_list(DATA_PATH, '.npts')
     shuffle(list_files)
